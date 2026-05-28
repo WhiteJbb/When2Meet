@@ -5,10 +5,12 @@ import { Copy, Check, RefreshCw, Save, CalendarDays, Clock3, Users, AlertCircle,
 import { getRoom, getAvailabilities, upsertAvailability, deleteRoom } from '../lib/supabase'
 import TimeGrid from './TimeGrid'
 import ResultsView from './ResultsView'
+import { useAuth } from '../context/AuthContext'
 
 export default function RoomPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { syncSession } = useAuth()
 
   const [room, setRoom] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -43,12 +45,13 @@ export default function RoomPage() {
     
     // 최근 방문한 방 저장 (방 정보 포함)
     if (id) {
-      getRoom(id).then(roomData => {
+      getRoom(id).then(async (roomData) => {
         if (roomData) {
           const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
           const roomInfo = { id, title: roomData.title, visitedAt: Date.now() }
           const newRecent = [roomInfo, ...recentRooms.filter(r => r.id !== id)].slice(0, 5)
           localStorage.setItem('w2w-recent-rooms', JSON.stringify(newRecent))
+          await syncSession(newRecent).catch(err => console.error('Failed to sync room visit:', err))
         }
       }).catch(() => {})
     }
@@ -107,7 +110,26 @@ export default function RoomPage() {
 
   async function handleDelete() {
     setDeleting(true)
-    try { await deleteRoom(id); navigate('/') }
+    try { 
+      await deleteRoom(id)
+      localStorage.removeItem(`w2w-owner-${id}`)
+      
+      const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
+      const filteredRecent = recentRooms.filter(r => r.id !== id)
+      localStorage.setItem('w2w-recent-rooms', JSON.stringify(filteredRecent))
+      
+      // 소유한 방 목록 추출
+      const owned = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('w2w-owner-') && localStorage.getItem(key) === 'true') {
+          owned.push(key.replace('w2w-owner-', ''))
+        }
+      }
+      
+      await syncSession(filteredRecent, owned).catch(err => console.error('Failed to sync room deletion:', err))
+      navigate('/')
+    }
     catch { alert('삭제에 실패했습니다.') }
     finally { setDeleting(false); setShowDeleteConfirm(false) }
   }

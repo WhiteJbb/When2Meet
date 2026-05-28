@@ -9,10 +9,17 @@ function createMockClient() {
   return {
     from: () => ({
       insert: notConfigured,
-      select: () => ({ eq: () => ({ single: notConfigured, data: null, error: null }) }),
+      select: () => ({ eq: () => ({ single: notConfigured, maybeSingle: notConfigured, data: null, error: null }) }),
       upsert: notConfigured,
       delete: () => ({ eq: notConfigured }),
+      update: () => ({ eq: () => ({ select: () => ({ maybeSingle: notConfigured }) }) }),
     }),
+    auth: {
+      signInWithOAuth: () => Promise.resolve({ data: null, error: null }),
+      signOut: () => Promise.resolve({ error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+    },
     _isMock: true,
   }
 }
@@ -23,6 +30,45 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey &&
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : createMockClient()
+
+// ─── Auth & Profile helpers ──────────────────────────────────────────────────
+
+export async function signInWithKakao() {
+  if (!isSupabaseConfigured) return
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'kakao',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname
+    }
+  })
+  if (error) throw error
+  return data
+}
+
+export async function signOutUser() {
+  const { error } = await supabase.auth.signOut()
+  if (error) throw error
+}
+
+export async function getUserProfile(userId) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function upsertUserProfile(profile) {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .upsert(profile)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
 
 // ─── Room helpers ────────────────────────────────────────────────────────────
 

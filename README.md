@@ -178,16 +178,29 @@ create table availability (
   created_at timestamptz default now()
 );
 
+-- 사용자 프로필 테이블 (소셜 로그인용 백업 데이터)
+create table user_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text,
+  recent_rooms jsonb not null default '[]'::jsonb,
+  owned_rooms jsonb not null default '[]'::jsonb,
+  updated_at timestamptz default now()
+);
+
 -- Row Level Security (공개 읽기/쓰기 허용)
 alter table rooms enable row level security;
 alter table availability enable row level security;
+alter table user_profiles enable row level security;
 
-create policy "public read rooms"          on rooms        for select using (true);
-create policy "public insert rooms"        on rooms        for insert with check (true);
-create policy "public delete rooms"        on rooms        for delete using (true);
-create policy "public read availability"   on availability for select using (true);
-create policy "public insert availability" on availability for insert with check (true);
-create policy "public update availability" on availability for update using (true);
+create policy "public read rooms"            on rooms        for select using (true);
+create policy "public insert rooms"          on rooms        for insert with check (true);
+create policy "public delete rooms"          on rooms        for delete using (true);
+create policy "public read availability"     on availability for select using (true);
+create policy "public insert availability"   on availability for insert with check (true);
+create policy "public update availability"   on availability for update using (true);
+create policy "public read user_profiles"     on user_profiles for select using (true);
+create policy "public insert user_profiles"   on user_profiles for insert with check (auth.uid() = id);
+create policy "public update user_profiles"   on user_profiles for update using (auth.uid() = id);
 
 -- 10일 지난 방 자동 삭제 함수
 create or replace function delete_old_rooms()

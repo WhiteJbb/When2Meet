@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Home, Sun, Moon, Bell, MessageSquarePlus } from 'lucide-react'
+import { Home, Sun, Moon, MessageSquarePlus, LogOut, User } from 'lucide-react'
 import FeedbackModal from './FeedbackModal'
 import { useTheme } from '../context/ThemeContext'
+import { useAuth } from '../context/AuthContext'
 
 export default function Layout({ children }) {
   const [showFeedback, setShowFeedback] = useState(false)
   const { theme, toggle } = useTheme()
+  const { user, login, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isHome = location.pathname === '/'
@@ -24,7 +26,7 @@ export default function Layout({ children }) {
 
           <div className="flex items-center gap-2">
             <button onClick={() => setShowFeedback(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold transition-all active:scale-95 bg-[#edfdf8] dark:bg-[#0f2e2a] text-[#0ecfb0] dark:text-[#0ab8a0] border border-[#a8f2e4] dark:border-[#1a4a44]"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold transition-all active:scale-95 bg-[#edfdf8] dark:bg-[#0f2e2a] text-[#0ecfb0] dark:text-[#0ab8a0] border border-[#a8f2e4]/30 dark:border-[#1a4a44]/30"
               style={{ borderRadius: '999px' }}
             >
               <MessageSquarePlus className="w-4 h-4" /> 의견 보내기
@@ -34,6 +36,31 @@ export default function Layout({ children }) {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+
+            {/* 로그인 / 프로필 영역 */}
+            {user ? (
+              <div className="flex items-center gap-2 pl-2.5 border-l border-[#eee] dark:border-[#2d2d35]">
+                {user.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt="Profile" className="w-8 h-8 rounded-full border border-[#0ecfb0]/20" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] text-[#0ecfb0] font-bold text-xs">
+                    {user.user_metadata?.full_name?.charAt(0) || 'U'}
+                  </div>
+                )}
+                <span className="text-xs font-extrabold text-[#333] dark:text-[#ccc]">{user.user_metadata?.full_name || '사용자'}</span>
+                <button onClick={logout} title="로그아웃"
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-500 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button onClick={login}
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-extrabold text-[#3A1D1D] bg-[#FEE500] hover:bg-[#FADA0A] transition-all active:scale-95 shadow-sm rounded-full"
+              >
+                카카오 로그인
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -63,9 +90,19 @@ export default function Layout({ children }) {
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-[#f5f5f5] dark:bg-[#2c2c35] text-[#888] dark:text-[#666]">
-              <Bell className="w-4 h-4" />
-            </button>
+            {user ? (
+              <button onClick={logout} title="로그아웃"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-[#fff1f2] dark:bg-[#2d1a1d] text-[#e11d48] border border-[#fecdd3]/20"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button onClick={login} title="카카오 로그인"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-[#FEE500] text-[#3A1D1D] font-extrabold text-xs"
+              >
+                <User className="w-3.5 h-3.5 fill-[#3A1D1D] text-transparent" />
+              </button>
+            )}
           </div>
         </div>
       </header>

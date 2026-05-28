@@ -7,6 +7,7 @@ import {
 import DatePicker from './DatePicker'
 import { createRoom, isSupabaseConfigured } from '../lib/supabase'
 import { generateDateRange } from '../utils/timeUtils'
+import { useAuth } from '../context/AuthContext'
 
 const TIME_OPTIONS = Array.from({ length: 25 }, (_, i) => ({
   value: i,
@@ -21,6 +22,7 @@ const STEPS = [
 
 export default function CreateRoom() {
   const navigate = useNavigate()
+  const { profile, syncSession } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', startDate: todayStr(), endDate: '', numDays: 7, startHour: 9, endHour: 24 })
   const [dateMode, setDateMode] = useState('numDays') // 'numDays' or 'range'
@@ -29,10 +31,14 @@ export default function CreateRoom() {
   const [recentRooms, setRecentRooms] = useState([])
 
   useEffect(() => {
-    // 최근 방문한 방 불러오기
-    const recent = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
-    setRecentRooms(recent)
-  }, [])
+    // 최근 방문한 방 불러오기 (로그인 유저는 클라우드 프로필 우선)
+    if (profile) {
+      setRecentRooms(profile.recent_rooms || [])
+    } else {
+      const recent = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
+      setRecentRooms(recent)
+    }
+  }, [profile])
 
   function todayStr() {
     const d = new Date()
@@ -62,6 +68,16 @@ export default function CreateRoom() {
       
       // 방 생성자 토큰 저장
       localStorage.setItem(`w2w-owner-${room.id}`, 'true')
+      
+      // 소유한 방 목록 추출 및 동기화
+      const owned = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('w2w-owner-') && localStorage.getItem(key) === 'true') {
+          owned.push(key.replace('w2w-owner-', ''))
+        }
+      }
+      await syncSession(null, owned).catch(err => console.error('Failed to sync on room create:', err))
       
       navigate(`/room/${room.id}`)
     } catch (err) {
