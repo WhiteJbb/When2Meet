@@ -121,61 +121,150 @@ export default function TimeGrid({
     }
   }, [mode])
 
-  const handleTouchStart = useCallback((id) => (e) => {
-    if (mode !== 'select') return
-    e.preventDefault()
-    isDragging.current = true
-    dragMode.current = selected.has(id) ? 'remove' : 'add'
-    const [dateStr, time] = id.split('|')
-    const pos = { dateStr, rowIdx: timeSlots.indexOf(time) }
-    startPosRef.current = pos
-    lastPosRef.current = pos
-    onSelectionChange(prev => {
-      const next = new Set(prev)
-      dragMode.current === 'add' ? next.add(id) : next.delete(id)
-      return next
-    })
-  }, [mode, selected, onSelectionChange, timeSlots])
+  const isTouchDragging = useRef(false)
+  const touchStartPos = useRef(null)
+  const longPressTimer = useRef(null)
+  const applyToRef = useRef(applyTo)
 
-  const handleTouchMove = useCallback((e) => {
-    if (mode !== 'select' || !isDragging.current) return
-    e.preventDefault()
-    const touch = e.touches[0]
-    
-    // 터치가 움직였을 때만 범위 선택 적용
-    if (lastPosRef.current) {
-      applyTo(touch.clientX, touch.clientY)
+  useEffect(() => {
+    applyToRef.current = applyTo
+  })
+
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+
+    const onTouchMove = (e) => {
+      if (mode !== 'select') return
+
+      if (isTouchDragging.current) {
+        if (e.cancelable) {
+          e.preventDefault()
+        }
+        const touch = e.touches[0]
+        applyToRef.current(touch.clientX, touch.clientY)
+
+        // 자동 스크롤
+        if (containerRef.current) {
+          const container = containerRef.current
+          const rect = container.getBoundingClientRect()
+          const scrollSpeed = 10
+          const edgeSize = 50
+
+          if (touch.clientX < rect.left + edgeSize) {
+            container.scrollLeft -= scrollSpeed
+          } else if (touch.clientX > rect.right - edgeSize) {
+            container.scrollLeft += scrollSpeed
+          }
+
+          if (touch.clientY < rect.top + edgeSize) {
+            container.scrollTop -= scrollSpeed
+          } else if (touch.clientY > rect.bottom - edgeSize) {
+            container.scrollTop += scrollSpeed
+          }
+        }
+      } else {
+        const start = touchStartPos.current
+        if (start) {
+          const touch = e.touches[0]
+          const dx = touch.clientX - start.x
+          const dy = touch.clientY - start.y
+          const distance = Math.sqrt(dx * dx + dy * dy)
+          if (distance > 8) {
+            if (longPressTimer.current) {
+              clearTimeout(longPressTimer.current)
+              longPressTimer.current = null
+            }
+            touchStartPos.current = null
+          }
+        }
+      }
     }
-    
-    // 터치 자동 스크롤
-    if (containerRef.current) {
-      const container = containerRef.current
-      const rect = container.getBoundingClientRect()
-      const scrollSpeed = 10
-      const edgeSize = 50
-      
-      if (touch.clientX < rect.left + edgeSize) {
-        container.scrollLeft -= scrollSpeed
-      } else if (touch.clientX > rect.right - edgeSize) {
-        container.scrollLeft += scrollSpeed
-      }
-      
-      if (touch.clientY < rect.top + edgeSize) {
-        container.scrollTop -= scrollSpeed
-      } else if (touch.clientY > rect.bottom - edgeSize) {
-        container.scrollTop += scrollSpeed
-      }
+
+    grid.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      grid.removeEventListener('touchmove', onTouchMove)
     }
   }, [mode])
 
+  const handleTouchStart = useCallback((id) => (e) => {
+    if (mode !== 'select') return
+
+    const touch = e.touches[0]
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY, id }
+    isTouchDragging.current = false
+
+    if (longPressTimer.current) clearTimeout(longPressTimer.current)
+
+    longPressTimer.current = setTimeout(() => {
+      isTouchDragging.current = true
+      isDragging.current = true
+
+      dragMode.current = selected.has(id) ? 'remove' : 'add'
+      const [dateStr, time] = id.split('|')
+      const pos = { dateStr, rowIdx: timeSlots.indexOf(time) }
+      startPosRef.current = pos
+      lastPosRef.current = pos
+
+      onSelectionChange(prev => {
+        const next = new Set(prev)
+        dragMode.current === 'add' ? next.add(id) : next.delete(id)
+        return next
+      })
+
+      if (navigator.vibrate) {
+        navigator.vibrate(50)
+      }
+    }, 250)
+  }, [mode, selected, onSelectionChange, timeSlots])
+
+  const handleTouchEnd = useCallback((id) => (e) => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+
+    if (!isTouchDragging.current && touchStartPos.current) {
+      e.preventDefault()
+      onSelectionChange(prev => {
+        const next = new Set(prev)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        return next
+      })
+    }
+
+    isTouchDragging.current = false
+    touchStartPos.current = null
+    isDragging.current = false
+    startPosRef.current = null
+  }, [onSelectionChange])
+
   useEffect(() => {
-    const onUp = () => { 
+    const onUp = () => {
       isDragging.current = false
       startPosRef.current = null
     }
+
+    const onTouchEndGlobal = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current)
+        longPressTimer.current = null
+      }
+      isTouchDragging.current = false
+      touchStartPos.current = null
+      isDragging.current = false
+      startPosRef.current = null
+    }
+
     window.addEventListener('mouseup', onUp)
-    window.addEventListener('touchend', onUp)
-    return () => { window.removeEventListener('mouseup', onUp); window.removeEventListener('touchend', onUp) }
+    window.addEventListener('touchend', onTouchEndGlobal)
+    window.addEventListener('touchcancel', onTouchEndGlobal)
+    return () => {
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchend', onTouchEndGlobal)
+      window.removeEventListener('touchcancel', onTouchEndGlobal)
+    }
   }, [])
 
   const CELL_H = 32
@@ -208,7 +297,7 @@ export default function TimeGrid({
     <div ref={containerRef} className="overflow-auto time-grid-scroll"
       style={{ borderRadius: '24px', border: `1.5px solid ${c.border}`, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}
     >
-      <div ref={gridRef} className="relative" onMouseMove={handleMouseMove} onTouchMove={handleTouchMove}
+      <div ref={gridRef} className="relative" onMouseMove={handleMouseMove}
         style={{ minWidth: `${dates.length*64+70}px` }}
       >
         {/* 헤더 */}
@@ -272,6 +361,7 @@ export default function TimeGrid({
                     className="w-full box-border select-none-touch"
                     onMouseDown={handleMouseDown(id)}
                     onTouchStart={handleTouchStart(id)}
+                    onTouchEnd={handleTouchEnd(id)}
                     onMouseOver={() => onCellHover?.(id)}
                     onMouseLeave={() => onCellHover?.(null)}
                   />

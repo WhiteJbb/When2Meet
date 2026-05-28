@@ -273,13 +273,14 @@ export default function RoomPage() {
                   1
                 </div>
                 <div className="flex-1 pt-0.5">
-                  <p className="font-extrabold text-sm mb-1 text-[#111] dark:text-[#e4e4e7]">드래그로 시간 선택</p>
+                  <p className="font-extrabold text-sm mb-1 text-[#111] dark:text-[#e4e4e7]">편리한 시간 선택</p>
                   <p className="text-xs font-medium text-[#888]">
-                    타임 그리드에서 시작점을 클릭하고 끝점까지 드래그하세요. 
-                    사각형 영역의 모든 시간이 선택됩니다. (30분 단위)
+                    PC에서는 마우스로 드래그하여 범위를 선택할 수 있습니다. 
+                    모바일에서는 간단히 탭하여 칸을 켜고 끌 수 있으며, 
+                    <strong>0.25초간 길게 누른 후 문지르면</strong> 범위 선택이 가능합니다.
                   </p>
                   <p className="text-xs font-medium mt-1.5 text-[#666]">
-                    💡 캘린더 이동은 날짜/시간 표시 부분이나 여백을 드래그하세요
+                    💡 화면 이동: PC는 휠/드래그, 모바일은 일반적인 화면 스와이프로 부드럽게 스크롤됩니다.
                   </p>
                 </div>
               </div>
@@ -380,7 +381,7 @@ export default function RoomPage() {
           <div className="space-y-1.5 px-1">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-semibold flex-1" style={{ color:'#bbb' }}>
-                드래그하여 가능한 시간을 선택하세요
+                원하는 시간대를 드래그하거나 탭하여 선택하세요. (모바일은 길게 눌러 드래그)
               </p>
               {selected.size > 0 && (
                 <button onClick={() => {
@@ -392,7 +393,7 @@ export default function RoomPage() {
               )}
             </div>
             <p className="text-[10px] font-medium" style={{ color:'#888' }}>
-              💡 캘린더 이동: 날짜/시간 표시 부분이나 여백 드래그
+              💡 화면 스크롤: 모바일에서는 화면을 일반적인 스와이프로 밀어서 이동할 수 있습니다.
             </p>
           </div>
 
