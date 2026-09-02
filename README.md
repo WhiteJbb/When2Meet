@@ -60,9 +60,6 @@
 
 ```
 When2Work/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # GitHub Actions 자동 배포 워크플로우
 ├── public/
 │   └── favicon.svg             # 앱 아이콘
 ├── server/
@@ -216,16 +213,14 @@ docker compose --env-file .env up -d --build
 
 `deploy/nginx.conf`를 Nginx 설정에 연결하고 `when2meet.nangman.cloud`의 DNS A/AAAA 레코드를 서버로 지정합니다. HTTPS는 Let’s Encrypt 등으로 설정하고 Nginx에서 `127.0.0.1:3000`으로 reverse proxy합니다.
 
-GitHub Actions 자동 배포를 사용하려면 다음 Secrets를 등록합니다:
+이후 새 버전을 반영할 때는 서버의 저장소에서 직접 업데이트합니다:
 
-| Secret 이름 | 값 |
-|-------------|----|
-| `DEPLOY_HOST` | 서버 호스트명 또는 IP |
-| `DEPLOY_USER` | SSH 사용자 |
-| `DEPLOY_PATH` | 서버의 저장소 경로 |
-| `DEPLOY_SSH_KEY` | 배포용 SSH private key |
+```bash
+git pull --ff-only origin main
+docker compose --env-file .env up -d --build
+```
 
-workflow는 `main`에 push될 때 서버에서 `git pull` 후 Docker 이미지를 다시 빌드합니다. 운영 DB 포트(기본 5432)는 외부에 공개하지 않고, PostgreSQL volume은 정기적으로 백업합니다.
+운영 DB 포트(기본 5432)는 외부에 공개하지 않고, PostgreSQL volume은 정기적으로 백업합니다.
 
 ---
 
