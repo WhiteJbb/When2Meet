@@ -83,8 +83,7 @@ When2Work/
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css               # Tailwind + 커스텀 컴포넌트 스타일 (CSS 변수 포함)
-├── .env.example                # 환경변수 템플릿
-├── .env.server.example          # 서버 환경변수 템플릿
+├── .env.example                # 로컬/서버 공용 환경변수 템플릿
 ├── docker-compose.yml            # PostgreSQL + API 실행 설정
 ├── Dockerfile                   # production 이미지
 ├── .gitignore
@@ -206,12 +205,12 @@ curl http://localhost:3000/api/health
 서버에 Docker와 Docker Compose를 설치한 뒤 저장소를 받고 서버용 환경변수를 준비합니다.
 
 ```bash
-cp .env.server.example .env
+cp .env.example .env
 # .env의 DB_PASSWORD를 긴 임의 문자열로 변경
 docker compose --env-file .env up -d --build
 ```
 
-`deploy/nginx.conf`를 Nginx 설정에 연결하고 `when2meet.nangman.cloud`의 DNS A/AAAA 레코드를 서버로 지정합니다. HTTPS는 Let’s Encrypt 등으로 설정하고 Nginx에서 `127.0.0.1:3000`으로 reverse proxy합니다.
+앱은 서버의 `0.0.0.0:3000`에 바인딩됩니다. `deploy/nginx.conf`를 Nginx 설정에 연결하고 `when2meet.nangman.cloud`의 DNS A/AAAA 레코드를 서버로 지정합니다. HTTPS는 Let’s Encrypt 등으로 설정하고 Nginx에서 `127.0.0.1:3000`으로 reverse proxy합니다.
 
 이후 새 버전을 반영할 때는 서버의 저장소에서 직접 업데이트합니다:
 
