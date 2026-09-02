@@ -2,15 +2,15 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Copy, Check, RefreshCw, Save, CalendarDays, Clock3, Users, AlertCircle, Loader2, Trash2, Frown, Timer, BarChart2 } from 'lucide-react'
-import { getRoom, getAvailabilities, upsertAvailability, deleteRoom } from '../lib/supabase'
+import { getRoom, getAvailabilities, upsertAvailability, deleteRoom, claimRoom } from '../lib/api'
+import { useAuth } from '../context/AuthContext'
 import TimeGrid from './TimeGrid'
 import ResultsView from './ResultsView'
-import { useAuth } from '../context/AuthContext'
 
 export default function RoomPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { syncSession } = useAuth()
+  const { user } = useAuth()
 
   const [room, setRoom] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -30,10 +30,11 @@ export default function RoomPage() {
   const [copied, setCopied] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [claiming, setClaiming] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
   
-  // 방 생성자 확인
-  const isOwner = localStorage.getItem(`w2w-owner-${id}`) === 'true'
+  const browserOwnsRoom = localStorage.getItem(`w2w-owner-${id}`) === 'true'
+  const isOwner = browserOwnsRoom || room?.is_account_owner === true
 
   useEffect(() => {
     async function load() {
@@ -45,13 +46,12 @@ export default function RoomPage() {
     
     // 최근 방문한 방 저장 (방 정보 포함)
     if (id) {
-      getRoom(id).then(async (roomData) => {
+      getRoom(id).then((roomData) => {
         if (roomData) {
           const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
           const roomInfo = { id, title: roomData.title, visitedAt: Date.now() }
           const newRecent = [roomInfo, ...recentRooms.filter(r => r.id !== id)].slice(0, 5)
           localStorage.setItem('w2w-recent-rooms', JSON.stringify(newRecent))
-          await syncSession(newRecent).catch(err => console.error('Failed to sync room visit:', err))
         }
       }).catch(() => {})
     }
@@ -111,27 +111,34 @@ export default function RoomPage() {
   async function handleDelete() {
     setDeleting(true)
     try { 
-      await deleteRoom(id)
+      const ownerToken = localStorage.getItem(`w2w-owner-token-${id}`)
+      await deleteRoom(id, ownerToken)
       localStorage.removeItem(`w2w-owner-${id}`)
+      localStorage.removeItem(`w2w-owner-token-${id}`)
       
       const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
       const filteredRecent = recentRooms.filter(r => r.id !== id)
       localStorage.setItem('w2w-recent-rooms', JSON.stringify(filteredRecent))
       
-      // 소유한 방 목록 추출
-      const owned = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key && key.startsWith('w2w-owner-') && localStorage.getItem(key) === 'true') {
-          owned.push(key.replace('w2w-owner-', ''))
-        }
-      }
-      
-      await syncSession(filteredRecent, owned).catch(err => console.error('Failed to sync room deletion:', err))
       navigate('/')
     }
     catch { alert('삭제에 실패했습니다.') }
     finally { setDeleting(false); setShowDeleteConfirm(false) }
+  }
+
+  async function handleClaim() {
+    const ownerToken = localStorage.getItem(`w2w-owner-token-${id}`)
+    if (!ownerToken) return
+
+    setClaiming(true)
+    try {
+      await claimRoom(id, ownerToken)
+      setRoom(current => ({ ...current, is_unclaimed: false, is_account_owner: true }))
+    } catch {
+      alert('이 방을 계정에 연결하지 못했습니다.')
+    } finally {
+      setClaiming(false)
+    }
   }
 
   function closeTutorial(dontShowAgain = false) {
@@ -175,6 +182,16 @@ export default function RoomPage() {
             >
               {copied ? <><Check className="w-3.5 h-3.5"/>복사됨</> : <><Copy className="w-3.5 h-3.5"/>링크 복사</>}
             </button>
+            {user && room.is_unclaimed && browserOwnsRoom && (
+              <button onClick={handleClaim} disabled={claiming}
+                className="flex items-center gap-1 px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-bold active:scale-95 transition-all bg-[#edfdf8] dark:bg-[#0f2e2a] text-[#0ecfb0] dark:text-[#0ab8a0] border border-[#a8f2e4] dark:border-[#1a4a44]"
+                style={{ borderRadius: '999px' }}
+                title="이 방을 카카오 계정에 연결"
+              >
+                {claiming ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">계정에 </span>연결
+              </button>
+            )}
             {isOwner && (
               <button onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold active:scale-95 transition-all bg-[#fff1f2] dark:bg-[#2d1a1d] text-[#e11d48] border border-[#fecdd3] dark:border-[#4a2028]"

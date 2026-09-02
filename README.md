@@ -1,11 +1,11 @@
-# When2Work
+# When2Meet
 
 모두의 일정을 한번에 — 팀원들의 가능한 시간을 모아 최적의 만남 시간을 찾아주는 웹 애플리케이션입니다.
 
 ![React](https://img.shields.io/badge/React-18-61dafb?logo=react)
 ![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind-3-06b6d4?logo=tailwindcss)
-![Supabase](https://img.shields.io/badge/Supabase-free-3ecf8e?logo=supabase)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql)
 
 ---
 
@@ -33,10 +33,13 @@
   - 드래그 선택, 캘린더 이동, 저장 방법 안내
   - "다시 보지 않기" 옵션 제공
 - **인앱 피드백** — 개선사항·버그 제보를 앱 내에서 바로 전송 (EmailJS)
-- **방 관리** — 방 생성자만 삭제 가능 + 10일 후 자동 삭제
+- **방 관리** — 방 생성자만 삭제 가능 + 마지막 날짜로부터 5일 후 자동 삭제
   - 방 생성 시 생성자 토큰 저장
   - 삭제 버튼은 생성자에게만 표시
   - 삭제 확인 모달로 실수 방지
+- **선택형 카카오 로그인** — 게스트 참여는 그대로 유지하고, 로그인한 방 생성자는 여러 기기에서 방 관리 가능
+  - 게스트 방은 기존 관리자 토큰으로 계속 관리
+  - 게스트 방 생성자가 로그인하면 자신의 계정에 방 연결 가능
 - **다크/라이트 모드** — 수동 전환, localStorage 유지
 - **반응형 디자인** — 모바일 우선 + PC 2열 레이아웃 대응
 
@@ -50,9 +53,9 @@
 | 스타일링 | Tailwind CSS v3 |
 | 아이콘 | Lucide React |
 | 라우팅 | React Router v6 (HashRouter) |
-| 백엔드/DB | Supabase (무료 티어) |
+| 백엔드/DB | Node.js + Express + PostgreSQL |
 | 피드백 메일 | EmailJS (REST API) |
-| 배포 | GitHub Pages + GitHub Actions |
+| 배포 | Docker Compose + 서버 reverse proxy |
 
 ---
 
@@ -64,8 +67,10 @@ When2Work/
 │   └── workflows/
 │       └── deploy.yml          # GitHub Actions 자동 배포 워크플로우
 ├── public/
-│   ├── favicon.svg             # 앱 아이콘
-│   └── CNAME                   # 커스텀 도메인 설정 (선택)
+│   └── favicon.svg             # 앱 아이콘
+├── server/
+│   ├── index.js                # API 서버 및 정적 파일 서버
+│   └── schema.sql              # PostgreSQL 스키마
 ├── src/
 │   ├── components/
 │   │   ├── CreateRoom.jsx      # 방 생성 페이지
@@ -76,15 +81,19 @@ When2Work/
 │   │   ├── DatePicker.jsx      # 날짜 선택 컴포넌트
 │   │   └── Layout.jsx          # 공통 네비게이션 (PC 상단바 / 모바일 탭바)
 │   ├── context/
+│   │   ├── AuthContext.jsx     # 선택형 카카오 로그인 상태
 │   │   └── ThemeContext.jsx    # 다크/라이트 테마 전역 상태
 │   ├── lib/
-│   │   └── supabase.js         # Supabase 클라이언트
+│   │   └── api.js              # 백엔드 API 클라이언트
 │   ├── utils/
 │   │   └── timeUtils.js        # 슬롯 생성, 히트맵 분석, 최적 시간 탐색
 │   ├── App.jsx
 │   ├── main.jsx
 │   └── index.css               # Tailwind + 커스텀 컴포넌트 스타일 (CSS 변수 포함)
 ├── .env.example                # 환경변수 템플릿
+├── .env.server.example          # 서버 환경변수 템플릿
+├── docker-compose.yml            # PostgreSQL + API 실행 설정
+├── Dockerfile                   # production 이미지
 ├── .gitignore
 ├── index.html
 ├── package.json
@@ -127,9 +136,19 @@ copy .env.example .env
 
 `.env` 파일 내용:
 ```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
-VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
+VITE_API_BASE_URL=/api
 VITE_BASE_URL=/
+PORT=3000
+NODE_ENV=development
+APP_URL=http://localhost:5173
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=when2meet
+DB_USER=when2meet
+DB_PASSWORD=change-this-password
+KAKAO_REST_API_KEY=your-kakao-rest-api-key
+KAKAO_CLIENT_SECRET=your-kakao-client-secret
+KAKAO_REDIRECT_URI=http://localhost:5173/api/auth/kakao/callback
 VITE_EMAILJS_SERVICE_ID=YOUR_SERVICE_ID
 VITE_EMAILJS_TEMPLATE_ID=YOUR_TEMPLATE_ID
 VITE_EMAILJS_PUBLIC_KEY=YOUR_PUBLIC_KEY
@@ -137,100 +156,35 @@ VITE_EMAILJS_PUBLIC_KEY=YOUR_PUBLIC_KEY
 
 ### 4. 개발 서버 실행
 
+터미널을 두 개 열고 API 서버와 Vite 개발 서버를 각각 실행합니다.
+
+```bash
+npm run server
+```
+
 ```bash
 npm run dev
 ```
 
-브라우저에서 `http://localhost:5173` 접속
+브라우저에서 `http://localhost:5173` 접속합니다. Vite가 `/api` 요청을 `http://localhost:3000`으로 전달합니다.
 
 ---
 
-## Supabase 설정
+## 로컬 서버 및 DB 실행
 
-> Supabase 없이는 방 생성/데이터 저장이 동작하지 않습니다. 무료 티어로 충분합니다.
+Docker Desktop을 실행한 뒤 PostgreSQL과 API 서버를 함께 시작합니다.
 
-### 1. 프로젝트 생성
-
-[supabase.com](https://supabase.com) → **New Project** 생성
-
-### 2. 테이블 생성
-
-Supabase 대시보드 → **SQL Editor** → 아래 쿼리 실행:
-
-```sql
--- 방 테이블
-create table rooms (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  dates text[] not null,
-  time_start integer not null default 9,
-  time_end integer not null default 21,
-  created_at timestamptz default now()
-);
-
--- 참여자 가능 시간 테이블
-create table availability (
-  id uuid primary key default gen_random_uuid(),
-  room_id uuid references rooms(id) on delete cascade,
-  name text not null,
-  slots text[] not null,
-  updated_at timestamptz default now(),
-  created_at timestamptz default now()
-);
-
--- 사용자 프로필 테이블 (소셜 로그인용 백업 데이터)
-create table user_profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text,
-  recent_rooms jsonb not null default '[]'::jsonb,
-  owned_rooms jsonb not null default '[]'::jsonb,
-  updated_at timestamptz default now()
-);
-
--- Row Level Security (공개 읽기/쓰기 허용)
-alter table rooms enable row level security;
-alter table availability enable row level security;
-alter table user_profiles enable row level security;
-
-create policy "public read rooms"            on rooms        for select using (true);
-create policy "public insert rooms"          on rooms        for insert with check (true);
-create policy "public delete rooms"          on rooms        for delete using (true);
-create policy "public read availability"     on availability for select using (true);
-create policy "public insert availability"   on availability for insert with check (true);
-create policy "public update availability"   on availability for update using (true);
-create policy "public read user_profiles"     on user_profiles for select using (true);
-create policy "public insert user_profiles"   on user_profiles for insert with check (auth.uid() = id);
-create policy "public update user_profiles"   on user_profiles for update using (auth.uid() = id);
-
--- 10일 지난 방 자동 삭제 함수
-create or replace function delete_old_rooms()
-returns void language plpgsql security definer as $$
-begin
-  delete from rooms where created_at < now() - interval '10 days';
-end;
-$$;
+```bash
+docker compose up -d --build
 ```
 
-### 3. Cron Job 설정 (자동 삭제)
+API 상태 확인:
 
-Supabase 대시보드 → **Database → Extensions**에서 `pg_cron` 활성화 후 실행:
-
-```sql
-select cron.schedule(
-  'delete-old-rooms',
-  '0 0 * * *',
-  $$select delete_old_rooms();$$
-);
+```bash
+curl http://localhost:3000/api/health
 ```
 
-### 4. API 키 확인
-
-**Project Settings → API** 메뉴에서 복사:
-
-| 항목 | 복사할 값 |
-|------|---------|
-| `VITE_SUPABASE_URL` | Project URL |
-| `VITE_SUPABASE_ANON_KEY` | `anon` `public` 키 |
+브라우저에서 `http://localhost:3000`에 접속하면 production 빌드가 실행됩니다. DB 스키마는 `server/schema.sql`을 서버 시작 시 자동으로 생성합니다. 데이터는 `when2meet-db` Docker volume에 저장됩니다.
 
 ---
 
@@ -256,33 +210,40 @@ select cron.schedule(
 
 ---
 
-## GitHub Pages 배포
+## 서버 배포
 
-### 1. GitHub Secrets 등록
+서비스 주소: https://when2meet.nangman.cloud
 
-레포지토리 → **Settings → Secrets and variables → Actions**:
+서버에 Docker와 Docker Compose를 설치한 뒤 저장소를 받고 서버용 환경변수를 준비합니다.
+
+```bash
+cp .env.server.example .env
+# .env의 DB_PASSWORD를 긴 임의 문자열로 변경
+docker compose --env-file .env up -d --build
+```
+
+`deploy/nginx.conf`를 Nginx 설정에 연결하고 `when2meet.nangman.cloud`의 DNS A/AAAA 레코드를 서버로 지정합니다. HTTPS는 Let’s Encrypt 등으로 설정하고 Nginx에서 `127.0.0.1:3000`으로 reverse proxy합니다.
+
+카카오 로그인을 사용하려면 [Kakao Developers](https://developers.kakao.com/)에서 Kakao Login을 활성화하고 Redirect URI를 등록합니다. 운영 서버의 `.env`에 REST API 키, Client Secret, 다음 Redirect URI를 입력합니다:
+
+```env
+KAKAO_REST_API_KEY=...
+KAKAO_CLIENT_SECRET=...
+KAKAO_REDIRECT_URI=https://when2meet.nangman.cloud/api/auth/kakao/callback
+```
+
+카카오 로그인은 선택 사항이며, 키가 설정되지 않은 환경에서는 게스트 모드만 표시됩니다.
+
+GitHub Actions 자동 배포를 사용하려면 다음 Secrets를 등록합니다:
 
 | Secret 이름 | 값 |
 |-------------|----|
-| `VITE_SUPABASE_URL` | Supabase Project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon key |
-| `VITE_EMAILJS_SERVICE_ID` | EmailJS Service ID |
-| `VITE_EMAILJS_TEMPLATE_ID` | EmailJS Template ID |
-| `VITE_EMAILJS_PUBLIC_KEY` | EmailJS Public Key |
+| `DEPLOY_HOST` | 서버 호스트명 또는 IP |
+| `DEPLOY_USER` | SSH 사용자 |
+| `DEPLOY_PATH` | 서버의 저장소 경로 |
+| `DEPLOY_SSH_KEY` | 배포용 SSH private key |
 
-### 2. GitHub Pages 활성화
-
-레포지토리 → **Settings → Pages → Source** → **GitHub Actions** 선택
-
-이후 `main` 브랜치에 push할 때마다 자동 배포됩니다.
-
-### 3. 레포 이름이 `When2Work`가 아닌 경우
-
-`.github/workflows/deploy.yml`의 `VITE_BASE_URL` 값을 수정합니다:
-
-```yaml
-VITE_BASE_URL: /your-repo-name/
-```
+workflow는 `main`에 push될 때 서버에서 `git pull` 후 Docker 이미지를 다시 빌드합니다. 운영 DB 포트(기본 5432)는 외부에 공개하지 않고, PostgreSQL volume은 정기적으로 백업합니다.
 
 ---
 
@@ -313,8 +274,10 @@ VITE_BASE_URL: /your-repo-name/
 
 5. 방 관리
    └─ 방 생성자만 삭제 버튼 표시
+   └─ 카카오 로그인 사용자는 다른 기기에서도 관리 가능
+   └─ 게스트 방은 생성 브라우저에서 계정에 연결 가능
    └─ 삭제 확인 모달로 실수 방지
-   └─ 10일 후 자동 삭제
+   └─ 마지막 날짜로부터 5일 후 자동 삭제
 
 6. 최근 일정
    └─ 홈 화면에서 최근 방문한 방 목록 확인
