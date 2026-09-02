@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { Copy, Check, RefreshCw, Save, CalendarDays, Clock3, Users, AlertCircle, Loader2, Trash2, Frown, Timer, BarChart2 } from 'lucide-react'
-import { getRoom, getAvailabilities, upsertAvailability, deleteRoom } from '../lib/supabase'
+import { getRoom, getAvailabilities, upsertAvailability, deleteRoom } from '../lib/api'
 import TimeGrid from './TimeGrid'
 import ResultsView from './ResultsView'
 
@@ -30,7 +30,6 @@ export default function RoomPage() {
   const [deleting, setDeleting] = useState(false)
   const [showTutorial, setShowTutorial] = useState(false)
   
-  // 방 생성자 확인
   const isOwner = localStorage.getItem(`w2w-owner-${id}`) === 'true'
 
   useEffect(() => {
@@ -43,7 +42,7 @@ export default function RoomPage() {
     
     // 최근 방문한 방 저장 (방 정보 포함)
     if (id) {
-      getRoom(id).then(roomData => {
+      getRoom(id).then((roomData) => {
         if (roomData) {
           const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
           const roomInfo = { id, title: roomData.title, visitedAt: Date.now() }
@@ -107,7 +106,18 @@ export default function RoomPage() {
 
   async function handleDelete() {
     setDeleting(true)
-    try { await deleteRoom(id); navigate('/') }
+    try { 
+      const ownerToken = localStorage.getItem(`w2w-owner-token-${id}`)
+      await deleteRoom(id, ownerToken)
+      localStorage.removeItem(`w2w-owner-${id}`)
+      localStorage.removeItem(`w2w-owner-token-${id}`)
+      
+      const recentRooms = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
+      const filteredRecent = recentRooms.filter(r => r.id !== id)
+      localStorage.setItem('w2w-recent-rooms', JSON.stringify(filteredRecent))
+      
+      navigate('/')
+    }
     catch { alert('삭제에 실패했습니다.') }
     finally { setDeleting(false); setShowDeleteConfirm(false) }
   }

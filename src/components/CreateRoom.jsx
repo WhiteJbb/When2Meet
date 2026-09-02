@@ -5,7 +5,7 @@ import {
   CheckCircle2, ArrowRight, Hash, PenLine, Loader2
 } from 'lucide-react'
 import DatePicker from './DatePicker'
-import { createRoom, isSupabaseConfigured } from '../lib/supabase'
+import { createRoom } from '../lib/api'
 import { generateDateRange } from '../utils/timeUtils'
 
 const TIME_OPTIONS = Array.from({ length: 25 }, (_, i) => ({
@@ -29,7 +29,7 @@ export default function CreateRoom() {
   const [recentRooms, setRecentRooms] = useState([])
 
   useEffect(() => {
-    // 최근 방문한 방 불러오기
+    // 최근 방문한 방 불러오기 (로그인 유저는 클라우드 프로필 우선)
     const recent = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
     setRecentRooms(recent)
   }, [])
@@ -62,6 +62,9 @@ export default function CreateRoom() {
       
       // 방 생성자 토큰 저장
       localStorage.setItem(`w2w-owner-${room.id}`, 'true')
+      if (room.owner_token) {
+        localStorage.setItem(`w2w-owner-token-${room.id}`, room.owner_token)
+      }
       
       navigate(`/room/${room.id}`)
     } catch (err) {
@@ -283,7 +286,7 @@ export default function CreateRoom() {
       )}
 
       <button onClick={handleSubmit} className="btn-primary w-full py-4 text-base"
-        disabled={loading || !isSupabaseConfigured}
+        disabled={loading}
       >
         {loading ? <><Loader2 className="w-4 h-4 animate-spin" />생성 중...</> : <>방 만들기<ArrowRight className="w-4 h-4" /></>}
       </button>
@@ -377,14 +380,6 @@ export default function CreateRoom() {
               </div>
               <p className="font-extrabold text-xl text-[#111] dark:text-[#e4e4e7]">방 만들기</p>
             </div>
-            {!isSupabaseConfigured && (
-              <div className="mb-4 p-3 rounded-2xl flex gap-2"
-                style={{ background: '#fffbeb', border: '1.5px solid #fde68a' }}
-              >
-                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs font-semibold text-amber-700">Supabase 미설정 — <code>.env.local</code>을 확인해주세요.</p>
-              </div>
-            )}
             {FormContent}
           </div>
         </div>
@@ -396,15 +391,6 @@ export default function CreateRoom() {
           <p className="section-sub mb-1">Team Scheduler</p>
           <h1 className="section-title">모두의 일정을 한번에</h1>
         </div>
-
-        {!isSupabaseConfigured && (
-          <div className="mb-5 p-4 rounded-2xl flex gap-3"
-            style={{ background: '#fffbeb', border: '1.5px solid #fde68a' }}
-          >
-            <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs font-semibold text-amber-700">Supabase 미설정</p>
-          </div>
-        )}
 
         {/* 히어로 카드 + 사이드 그리드 */}
         <div className="grid grid-cols-5 gap-3 mb-6">
@@ -484,7 +470,7 @@ export default function CreateRoom() {
 
         {/* 이용 방법 */}
         <div className="mb-6">
-          <p className="section-sub mb-1">When2Work 소개</p>
+          <p className="section-sub mb-1">When2Meet 소개</p>
           <p className="section-title text-lg mb-3">이렇게 사용해요</p>
           <div className="card p-4 space-y-3">
             {STEPS.map((s, i) => (
