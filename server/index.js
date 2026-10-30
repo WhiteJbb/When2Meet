@@ -57,14 +57,14 @@ function validateRoomInput(body) {
 
 function validateAvailabilityInput(body) {
   const name = typeof body?.name === 'string' ? body.name.trim() : ''
-  const slots = Array.isArray(body?.slots) ? body.slots : []
+  const slots = body?.slots
 
   if (!name || name.length > 20) throw new Error('Name must be between 1 and 20 characters')
-  if (slots.length < 1 || slots.some(slot => typeof slot !== 'string' || slot.length > 100)) {
-    throw new Error('At least one valid slot is required')
+  if (!Array.isArray(slots) || slots.length > 1440 || slots.some(slot => typeof slot !== 'string' || !/^\d{4}-\d{2}-\d{2}\|(?:[01]\d|2[0-3]):(?:00|30)$/.test(slot))) {
+    throw new Error('Invalid time slots')
   }
 
-  return { name, slots }
+  return { name, slots: [...new Set(slots)] }
 }
 
 app.get('/api/health', async (_req, res, next) => {
@@ -112,9 +112,10 @@ app.get('/api/rooms/:id/availability', async (req, res, next) => {
   try {
     if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Invalid room id' })
     const { rows } = await pool.query(
-      `SELECT id, room_id, name, slots, updated_at, created_at
+      `SELECT id, room_id, name, slots, updated_at, created_at,
+              COALESCE(response_token_hash = $2, false) AS is_mine
        FROM availability WHERE room_id = $1 ORDER BY created_at ASC`,
-      [req.params.id],
+      [req.params.id, req.get('x-response-token') ? hashToken(req.get('x-response-token')) : null],
     )
     res.json(rows)
   } catch (error) {
@@ -125,14 +126,24 @@ app.get('/api/rooms/:id/availability', async (req, res, next) => {
 app.put('/api/rooms/:id/availability', async (req, res, next) => {
   try {
     if (!isUuid(req.params.id)) return res.status(400).json({ error: 'Invalid room id' })
+    const responseToken = req.get('x-response-token')
+    if (!/^[a-f0-9]{64}$/.test(responseToken || '')) {
+      return res.status(400).json({ error: '화면을 새로고침한 뒤 다시 저장해주세요.' })
+    }
     const { name, slots } = validateAvailabilityInput(req.body)
+    const room = await pool.query('SELECT dates, time_start, time_end FROM rooms WHERE id = $1', [req.params.id])
+    if (!room.rows[0]) return res.status(404).json({ error: 'Room not found' })
+    const { dates, time_start: start, time_end: end } = room.rows[0]
+    if (slots.some(slot => !dates.includes(slot.split('|')[0]) || Number(slot.slice(11, 13)) < start || Number(slot.slice(11, 13)) >= end)) {
+      return res.status(400).json({ error: '일정 범위 안의 시간을 선택해주세요.' })
+    }
     const { rows } = await pool.query(
-      `INSERT INTO availability (room_id, name, slots)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (room_id, name)
-       DO UPDATE SET slots = EXCLUDED.slots, updated_at = now()
+      `INSERT INTO availability (room_id, name, slots, response_token_hash)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (room_id, response_token_hash)
+       DO UPDATE SET name = EXCLUDED.name, slots = EXCLUDED.slots, updated_at = now()
        RETURNING id, room_id, name, slots, updated_at, created_at`,
-      [req.params.id, name, slots],
+      [req.params.id, name, slots, hashToken(responseToken)],
     )
     res.json(rows[0])
   } catch (error) {

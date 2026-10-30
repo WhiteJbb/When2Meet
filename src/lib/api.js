@@ -39,9 +39,22 @@ export function upsertAvailability(entry) {
   return request(`/rooms/${encodeURIComponent(entry.room_id)}/availability`, {
     method: 'PUT',
     body: { name: entry.name, slots: entry.slots },
+    headers: { 'x-response-token': entry.responseToken },
   })
 }
 
-export function getAvailabilities(roomId) {
-  return request(`/rooms/${encodeURIComponent(roomId)}/availability`)
+export function getAvailabilities(roomId, responseToken) {
+  return request(`/rooms/${encodeURIComponent(roomId)}/availability`, {
+    headers: responseToken ? { 'x-response-token': responseToken } : {},
+  })
+}
+
+export function getResponseToken(roomId) {
+  const key = `w2w-response-token-${roomId}`
+  let token = localStorage.getItem(key)
+  if (!/^[a-f0-9]{64}$/.test(token || '')) {
+    token = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
+    localStorage.setItem(key, token)
+  }
+  return token
 }

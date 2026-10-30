@@ -22,6 +22,7 @@
 - `.env`와 서버 비밀번호를 커밋하거나 출력하지 않습니다. 필요한 환경변수는 `.env.example`에 문서화합니다.
 - DB 스키마는 `server/schema.sql`을 기준으로 관리합니다. 운영 DB에 쓰기/삭제 쿼리를 실행하지 않습니다.
 - 현재 주요 테이블은 `rooms`, `availability`이며, 로컬 PostgreSQL은 Docker Compose로 실행합니다.
+- 개발 서버는 항상 Tailscale에서 접속할 수 있도록 `0.0.0.0:5173`으로 실행하고, 현재 tailnet의 MagicDNS 호스트를 허용합니다. 미리보기 안내에는 Tailscale 접속 주소도 포함합니다.
 
 ## 검증
 

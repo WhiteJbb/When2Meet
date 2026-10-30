@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertCircle, Calendar, CalendarDays, Clock, Link2,
-  CheckCircle2, ArrowRight, Hash, PenLine, Loader2
+  AlertCircle, ArrowRight, Clock3, Link2, Check, Loader2, X
 } from 'lucide-react'
 import DatePicker from './DatePicker'
 import { createRoom } from '../lib/api'
@@ -13,23 +12,31 @@ const TIME_OPTIONS = Array.from({ length: 25 }, (_, i) => ({
   label: `${String(i).padStart(2, '0')}:00`,
 }))
 
-const STEPS = [
-  { icon: CalendarDays, title: '방 만들기',  desc: '날짜 범위와 시간대를 설정해서 방을 생성해요.' },
-  { icon: Link2,        title: '링크 공유',  desc: '생성된 링크를 팀원들에게 보내요.' },
-  { icon: CheckCircle2, title: '결과 확인',  desc: '모두가 가능한 최적의 시간을 확인해요.' },
-]
 
 export default function CreateRoom() {
   const navigate = useNavigate()
-  const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', startDate: todayStr(), endDate: '', numDays: 7, startHour: 9, endHour: 24 })
   const [dateMode, setDateMode] = useState('numDays') // 'numDays' or 'range'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [recentRooms, setRecentRooms] = useState([])
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const sheetRef = useRef(null)
 
   useEffect(() => {
-    // 최근 방문한 방 불러오기 (로그인 유저는 클라우드 프로필 우선)
+    const sheet = sheetRef.current
+    if (!sheetOpen || !sheet) return
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    sheet.showModal()
+    return () => {
+      sheet.close()
+      document.body.style.overflow = overflow
+    }
+  }, [sheetOpen])
+
+  useEffect(() => {
+    // 이 브라우저에서 방문한 일정
     const recent = JSON.parse(localStorage.getItem('w2w-recent-rooms') || '[]')
     setRecentRooms(recent)
   }, [])
@@ -42,7 +49,8 @@ export default function CreateRoom() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!form.title.trim()) { setError('방 제목을 입력해주세요.'); return }
+    if (!form.title.trim()) { setError('일정 제목을 입력해주세요.'); return }
+    if (dateMode === 'range' && !form.endDate) { setError('종료 날짜를 선택해주세요.'); return }
     if (form.startHour >= form.endHour) { setError('종료 시간은 시작 시간보다 늦어야 합니다.'); return }
     
     // 날짜 범위 계산
@@ -68,7 +76,7 @@ export default function CreateRoom() {
       
       navigate(`/room/${room.id}`)
     } catch (err) {
-      setError('방 생성에 실패했습니다.')
+      setError('일정을 만들지 못했습니다. 다시 시도해주세요.')
       console.error(err)
     } finally {
       setLoading(false)
@@ -77,14 +85,23 @@ export default function CreateRoom() {
 
   // 날짜 범위 계산
   let previewDates = []
-  if (dateMode === 'range' && form.endDate) {
+  if (dateMode === 'numDays') {
+    previewDates = generateDateRange(form.startDate, form.numDays)
+  } else if (form.endDate) {
     const start = new Date(form.startDate + 'T00:00:00')
     const end = new Date(form.endDate + 'T00:00:00')
     const numDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1
     previewDates = numDays > 0 && numDays <= 30 ? generateDateRange(form.startDate, numDays) : []
-  } else {
-    previewDates = generateDateRange(form.startDate, form.numDays)
   }
+
+  const previewStart = previewDates[0]
+  const previewEnd = previewDates[previewDates.length - 1]
+  const previewRange = previewDates.length > 0
+    ? new Intl.DateTimeFormat('ko-KR', {
+        month: 'long', day: 'numeric',
+        year: previewStart.slice(0, 4) !== previewEnd.slice(0, 4) ? 'numeric' : undefined,
+      }).formatRange(new Date(previewStart + 'T00:00:00'), new Date(previewEnd + 'T00:00:00'))
+    : '기간을 선택해주세요'
 
   // 주별로 날짜 그룹화 (8일 이상일 때만)
   const groupedByWeek = []
@@ -126,54 +143,62 @@ export default function CreateRoom() {
     }
   }
 
+  const FormActions = (
+    <>
+      {error && (
+        <div role="alert" className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm mb-3"
+          style={{ background: '#fff1f2', color: '#e11d48' }}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+      <button type="submit" form="meeting-form" className="btn-primary w-full py-3.5" disabled={loading}>
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />생성 중...</> : <>일정 만들기<ArrowRight className="w-4 h-4" /></>}
+      </button>
+    </>
+  )
+
   const FormContent = (
-    <div className="space-y-4">
+    <form id="meeting-form" onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="label"><PenLine className="w-3 h-3 inline mr-1" />회의 제목</label>
-        <input type="text" className="input" placeholder="Ex) 프로젝트 킥오프 미팅"
+        <label htmlFor="meeting-title" className="label">일정 이름</label>
+        <input id="meeting-title" required type="text" className="input" placeholder="예: 오랜만에 저녁 모임"
           value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))} maxLength={60}
         />
       </div>
 
       {/* 날짜 선택 모드 토글 */}
       <div>
-        <label className="label"><Calendar className="w-3 h-3 inline mr-1" />날짜 선택 방식</label>
-        <div className="flex gap-2">
+        <label className="label">날짜 선택 방식</label>
+        <div className="date-mode">
           <button
             type="button"
+            aria-pressed={dateMode === 'numDays'}
             onClick={() => setDateMode('numDays')}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all ${
-              dateMode === 'numDays'
-                ? 'bg-[#0ecfb0] text-white'
-                : 'bg-[#f5f5f5] dark:bg-[#2a2a30] text-[#888] hover:bg-[#e8e8e8] dark:hover:bg-[#323238]'
-            }`}
+            className="date-mode-option"
           >
-            일수 선택
+            시작일 + 일수
           </button>
           <button
             type="button"
+            aria-pressed={dateMode === 'range'}
             onClick={() => setDateMode('range')}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-semibold transition-all ${
-              dateMode === 'range'
-                ? 'bg-[#0ecfb0] text-white'
-                : 'bg-[#f5f5f5] dark:bg-[#2a2a30] text-[#888] hover:bg-[#e8e8e8] dark:hover:bg-[#323238]'
-            }`}
+            className="date-mode-option"
           >
-            기간 선택
+            시작일 + 종료일
           </button>
         </div>
       </div>
 
       {dateMode === 'numDays' ? (
         <>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="date-fields grid grid-cols-2 gap-3">
             <div>
-              <label className="label"><Calendar className="w-3 h-3 inline mr-1" />시작 날짜</label>
-              <DatePicker value={form.startDate} minDate={todayStr()} onChange={val => setForm(f => ({...f, startDate: val}))} />
+              <label htmlFor="start-date" className="label">시작 날짜</label>
+              <DatePicker inline id="start-date" value={form.startDate} minDate={todayStr()} onChange={val => setForm(f => ({...f, startDate: val}))} />
             </div>
             <div>
-              <label className="label"><Hash className="w-3 h-3 inline mr-1" />날짜 수</label>
-              <select className="input" value={form.numDays} onChange={e => setForm(f => ({...f, numDays: Number(e.target.value)}))}>
+              <label htmlFor="day-count" className="label">날짜 수</label>
+              <select id="day-count" className="input" value={form.numDays} onChange={e => setForm(f => ({...f, numDays: Number(e.target.value)}))}>
                 {Array.from({length: 30}, (_, i) => i + 1).map(n => (
                   <option key={n} value={n}>{n}일</option>
                 ))}
@@ -193,13 +218,10 @@ export default function CreateRoom() {
               ].map(({ label, days }) => (
                 <button
                   key={days}
+                  aria-pressed={form.numDays === days}
                   type="button"
                   onClick={() => setForm(f => ({...f, numDays: days}))}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                    form.numDays === days
-                      ? 'bg-[#edfdf8] dark:bg-[#0f2e2a] text-[#0ecfb0] border border-[#a8f2e4] dark:border-[#1a4a44]'
-                      : 'bg-[#f5f5f5] dark:bg-[#2a2a30] text-[#888] hover:bg-[#e8e8e8] dark:hover:bg-[#323238]'
-                  }`}
+                  className="quick-days"
                 >
                   {label}
                 </button>
@@ -208,14 +230,14 @@ export default function CreateRoom() {
           </div>
         </>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="date-fields grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="label"><Calendar className="w-3 h-3 inline mr-1" />시작 날짜</label>
-            <DatePicker value={form.startDate} minDate={form.startDate} onChange={val => setForm(f => ({...f, startDate: val}))} fullWidth />
+            <label htmlFor="start-date" className="label">시작 날짜</label>
+            <DatePicker inline id="start-date" value={form.startDate} minDate={todayStr()} onChange={val => setForm(f => ({...f, startDate: val}))} fullWidth />
           </div>
           <div>
-            <label className="label"><Calendar className="w-3 h-3 inline mr-1" />종료 날짜</label>
-            <DatePicker value={form.endDate} minDate={form.startDate} onChange={val => setForm(f => ({...f, endDate: val}))} fullWidth />
+            <label htmlFor="end-date" className="label">종료 날짜</label>
+            <DatePicker inline id="end-date" value={form.endDate} minDate={form.startDate} onChange={val => setForm(f => ({...f, endDate: val}))} fullWidth />
           </div>
         </div>
       )}
@@ -224,7 +246,7 @@ export default function CreateRoom() {
       {previewDates.length > 0 && (
         <div>
           <label className="label text-xs">선택된 날짜 ({previewDates.length}일)</label>
-          <div className="space-y-1.5 overflow-y-auto p-2 rounded-xl bg-[#f9f9f9] dark:bg-[#1a1a1f]"
+          <div className="candidate-dates space-y-1.5 overflow-y-auto"
             style={{ maxHeight: groupedByWeek.length <= 4 ? 'none' : '280px' }}
           >
             {groupedByWeek.map((week, weekIdx) => (
@@ -243,14 +265,7 @@ export default function CreateRoom() {
                   
                   return (
                     <span key={d}
-                      className={`text-[10px] font-bold px-1.5 py-1 text-center ${
-                        isSunday
-                          ? 'bg-[#fff1f2] dark:bg-[#2d1a1d] text-[#e11d48] border border-[#fecdd3] dark:border-[#4a2028]'
-                          : isSaturday
-                          ? 'bg-[#eff6ff] dark:bg-[#1e293b] text-[#3b82f6] border border-[#bfdbfe] dark:border-[#334155]'
-                          : 'bg-[#edfdf8] dark:bg-[#0f2e2a] text-[#0ecfb0] dark:text-[#0ab8a0] border border-[#a8f2e4] dark:border-[#1a4a44]'
-                      }`}
-                      style={{ borderRadius: '8px' }}
+                      className={`candidate-day ${isSunday || isSaturday ? 'candidate-weekend' : ''}`}
                     >
                       {date.getMonth()+1}/{date.getDate()}<br/>({days[dayOfWeek]})
                     </span>
@@ -264,255 +279,108 @@ export default function CreateRoom() {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label"><Clock className="w-3 h-3 inline mr-1" />시작 시간</label>
-          <select className="input" value={form.startHour} onChange={e => setForm(f => ({...f, startHour: Number(e.target.value)}))}>
+          <label htmlFor="start-hour" className="label">시작 시간</label>
+          <select id="start-hour" className="input" value={form.startHour} onChange={e => setForm(f => ({...f, startHour: Number(e.target.value)}))}>
             {TIME_OPTIONS.slice(0,24).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="label"><Clock className="w-3 h-3 inline mr-1" />종료 시간</label>
-          <select className="input" value={form.endHour} onChange={e => setForm(f => ({...f, endHour: Number(e.target.value)}))}>
+          <label htmlFor="end-hour" className="label">종료 시간</label>
+          <select id="end-hour" className="input" value={form.endHour} onChange={e => setForm(f => ({...f, endHour: Number(e.target.value)}))}>
             {TIME_OPTIONS.slice(1).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 text-sm font-semibold"
-          style={{ borderRadius: '999px', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3' }}
-        >
-          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
-        </div>
-      )}
-
-      <button onClick={handleSubmit} className="btn-primary w-full py-4 text-base"
-        disabled={loading}
-      >
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" />생성 중...</> : <>방 만들기<ArrowRight className="w-4 h-4" /></>}
-      </button>
-    </div>
+    </form>
   )
 
   return (
-    <div className="pb-4">
-
-      {/* ── PC 레이아웃 ── */}
-      <div className="hidden md:block pt-12">
-        <div className="grid gap-12 items-start" style={{ gridTemplateColumns: '1fr 1fr' }}>
-
-          {/* 왼쪽: 소개 */}
-          <div className="flex flex-col h-full">
-            <p className="section-sub mb-2">Team Scheduler</p>
-            <h1 className="text-5xl font-extrabold tracking-tight leading-tight mb-4 text-[#111] dark:text-[#e4e4e7]">
-              모두의 일정을<br />한번에
-            </h1>
-            <p className="text-base font-medium mb-8 text-[#aaa]">
-              방을 만들고 팀원에게 링크를 공유하세요.<br />
-              모두가 가능한 최적의 시간을 찾아드립니다.
-            </p>
-
-            {/* 히어로 카드 */}
-            <div className="rounded-3xl p-8 relative overflow-hidden mb-5 flex-shrink-0"
-              style={{
-                background: 'linear-gradient(145deg, #a8f2e4 0%, #0ecfb0 60%, #08b094 100%)',
-                boxShadow: '0 8px 32px rgba(14,207,176,0.35)',
-              }}
-            >
-              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
-              <div className="absolute -bottom-4 -left-4 w-28 h-28 rounded-full" style={{ background: 'rgba(255,255,255,0.1)' }} />
-              <div className="relative z-10">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4"
-                  style={{ background: 'rgba(255,255,255,0.25)' }}>
-                  <CalendarDays className="w-6 h-6 text-white" />
-                </div>
-                <p className="font-extrabold text-white text-2xl leading-tight">팀 일정 조율,<br />더 쉽게</p>
-                <p className="text-white/70 text-sm font-semibold mt-2">링크 하나로 모두의 가능 시간 수집</p>
-              </div>
+    <div className="home-page">
+      <section className="service-intro" aria-labelledby="hero-heading">
+        <div className="intro-inner">
+          <div className="intro-copy">
+            <p className="intro-eyebrow">우리, 언제 만날까요?</p>
+            <h1 id="hero-heading">만날 시간,<br /><span>함께 정해요.</span></h1>
+            <p className="intro-description">“언제 시간 돼?”는 짧게,<br />함께하는 시간은 길게.</p>
+            <div className="intro-actions">
+              <button id="open-create-meeting" type="button" className="btn-primary intro-create-button" aria-haspopup="dialog"
+                onClick={() => setSheetOpen(true)}>일정 만들기<ArrowRight size={20} /></button>
+              <button type="button" className="intro-guide-link" onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}>어떻게 쓰나요?</button>
             </div>
-
-            {/* 스텝 */}
-            <div className="space-y-3 flex-1">
-              {STEPS.map((s, i) => (
-                <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-[#f9f9f9] dark:bg-[#232329]">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                    <s.icon className="w-4 h-4 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-                  </div>
-                  <div>
-                    <p className="font-extrabold text-base text-[#111] dark:text-[#e4e4e7]">{s.title}</p>
-                    <p className="text-sm font-medium mt-0.5 text-[#aaa]">{s.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 최근 일정 */}
-            {recentRooms.length > 0 && (
-              <div className="mt-6">
-                <p className="text-xs font-semibold mb-2 text-[#aaa]">최근 일정</p>
-                <div className="space-y-2">
-                  {recentRooms.slice(0, 3).map(room => (
-                    <button
-                      key={room.id || room}
-                      onClick={() => navigate(`/room/${room.id || room}`)}
-                      className="w-full flex items-center justify-between p-3 rounded-xl bg-[#f9f9f9] dark:bg-[#232329] hover:bg-[#f0f0f0] dark:hover:bg-[#2a2a30] transition-colors"
-                    >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] flex-shrink-0">
-                          <CalendarDays className="w-3.5 h-3.5 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-                        </div>
-                        <p className="text-xs font-bold text-[#111] dark:text-[#e4e4e7] truncate">
-                          {room.title || `방 ${(room.id || room).slice(0, 8)}...`}
-                        </p>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-[#aaa] flex-shrink-0" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <span className="service-caption">가입 없이 무료로. 링크 하나면 초대 끝.</span>
           </div>
-
-          {/* 오른쪽: 인라인 폼 */}
-          <div className="card p-8">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                <CalendarDays className="w-4 h-4 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-              </div>
-              <p className="font-extrabold text-xl text-[#111] dark:text-[#e4e4e7]">방 만들기</p>
+          <figure className="gathering-scene" aria-labelledby="gathering-caption">
+            <div className="gathering-photo">
+              <img src="/images/dinner.jpg" width="1000" height="1500" alt="식탁에 둘러앉아 저녁을 함께하는 사람들" fetchpriority="high" />
+              <span className="photo-note">좋은 날은, 같이.</span>
             </div>
-            {FormContent}
-          </div>
+            <div className="chat-bubble chat-question"><span className="chat-name">우리 단톡방</span><p>다들 이번 주에 밥 먹을래?</p><span className="chat-time">오후 2:03</span></div>
+            <div className="chat-bubble chat-answer"><p>좋아! 언제가 편해?</p><span className="chat-time">오후 2:04</span></div>
+            <div className="sample-invite">
+              <div className="sample-invite-top"><span className="sample-invite-icon"><Link2 size={18} /></span><span>When2Meet <small>초대가 도착했어요</small></span><ArrowRight size={18} /></div>
+              <strong>오랜만에, 저녁 한 끼.</strong>
+              <p>이번 주 중 편한 시간을 골라줘!</p>
+              <div className="sample-invite-bottom"><span>가능한 시간 모으는 중</span><span className="sample-people" aria-hidden="true"><i /><i /><i /></span></div>
+            </div>
+            <figcaption id="gathering-caption">이렇게 약속이 시작돼요 · 초대 예시</figcaption>
+          </figure>
         </div>
-      </div>
+      </section>
 
-      {/* ── 모바일 레이아웃 ── */}
-      <div className="md:hidden">
-        <div className="pt-2 pb-6">
-          <p className="section-sub mb-1">Team Scheduler</p>
-          <h1 className="section-title">모두의 일정을 한번에</h1>
+      <dialog ref={sheetRef} className="create-sheet" aria-labelledby="sheet-heading"
+        onCancel={event => { event.preventDefault(); if (!loading) setSheetOpen(false) }}
+        onClick={event => { if (event.target === event.currentTarget && !loading) setSheetOpen(false) }}>
+        <div className="create-sheet-panel">
+          <header className="create-sheet-header">
+            <div><h2 id="sheet-heading">새 일정 만들기</h2><p>날짜와 시간 범위를 정해주세요.</p></div>
+            <button type="button" autoFocus className="create-sheet-close" aria-label="일정 만들기 닫기"
+              disabled={loading} onClick={() => setSheetOpen(false)}><X size={21} /></button>
+          </header>
+          <div className="create-sheet-body">{FormContent}</div>
+          <footer className="create-sheet-footer">
+            <p className="create-sheet-summary">{previewRange}{previewDates.length > 0 ? ` · ${previewDates.length}일` : ''}<span>{String(form.startHour).padStart(2, '0')}:00–{String(form.endHour).padStart(2, '0')}:00</span></p>
+            {FormActions}
+          </footer>
         </div>
+      </dialog>
 
-        {/* 히어로 카드 + 사이드 그리드 */}
-        <div className="grid grid-cols-5 gap-3 mb-6">
-          <button onClick={() => setShowForm(true)}
-            className="col-span-3 rounded-3xl p-5 text-left relative overflow-hidden transition-all active:scale-[0.97]"
-            style={{
-              background: 'linear-gradient(145deg, #a8f2e4 0%, #0ecfb0 60%, #08b094 100%)',
-              minHeight: '200px',
-              boxShadow: '0 6px 24px rgba(14,207,176,0.35)',
-            }}
-          >
-            <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
-            <div className="absolute -bottom-4 -left-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.1)' }} />
-            <div className="relative z-10 h-full flex flex-col justify-between">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ background: 'rgba(255,255,255,0.25)' }}>
-                <CalendarDays className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="font-extrabold text-white text-base leading-tight">방 만들기</p>
-                <p className="text-white/70 text-xs font-semibold mt-1">날짜·시간 설정 후 팀원 초대</p>
-              </div>
-            </div>
-          </button>
-
-          <div className="col-span-2 flex flex-col gap-3">
-            <div className="card flex-1 p-4 flex flex-col justify-between">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                <Link2 className="w-4 h-4 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-              </div>
-              <div>
-                <p className="font-extrabold text-sm text-[#111] dark:text-[#e4e4e7]">링크 공유</p>
-                <p className="text-xs font-medium mt-0.5 text-[#aaa]">팀원에게 전달</p>
-              </div>
-            </div>
-            <div className="card flex-1 p-4 flex flex-col justify-between">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                <CheckCircle2 className="w-4 h-4 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-              </div>
-              <div>
-                <p className="font-extrabold text-sm text-[#111] dark:text-[#e4e4e7]">결과 확인</p>
-                <p className="text-xs font-medium mt-0.5 text-[#aaa]">최적 시간 발견</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 최근 일정 */}
-        {recentRooms.length > 0 && (
-          <div className="mb-6">
-            <p className="section-sub mb-1">최근 일정</p>
-            <p className="section-title text-lg mb-3">다시 들어가기</p>
-            <div className="space-y-2">
-              {recentRooms.map(room => (
-                <button
-                  key={room.id || room}
-                  onClick={() => navigate(`/room/${room.id || room}`)}
-                  className="w-full card p-4 flex items-center justify-between hover:bg-[#f5f5f5] dark:hover:bg-[#2a2a30] transition-colors active:scale-[0.98]"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44] flex-shrink-0">
-                      <CalendarDays className="w-5 h-5 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-                    </div>
-                    <div className="text-left flex-1 min-w-0">
-                      <p className="font-extrabold text-sm text-[#111] dark:text-[#e4e4e7] truncate">
-                        {room.title || `방 ${(room.id || room).slice(0, 8)}...`}
-                      </p>
-                      <p className="text-xs font-medium text-[#aaa]">클릭하여 다시 입장</p>
-                    </div>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-[#aaa] flex-shrink-0" />
+      <div className="home-details">
+        <section className="recent-section" aria-labelledby="recent-heading">
+          <div className="recent-heading"><h2 id="recent-heading">최근 일정</h2><span>이 브라우저에서 방문한 일정</span></div>
+          {recentRooms.length > 0 ? (
+            <div className="recent-cards">
+              {recentRooms.slice(0, 5).map(room => (
+                <button type="button" className="recent-card" key={room.id || room} onClick={() => navigate(`/room/${room.id || room}`)}>
+                  <span className="recent-card-heading">
+                    <span className="recent-card-icon" aria-hidden="true"><Clock3 size={18} /></span>
+                    <span className="recent-card-title">{room.title || `일정 ${(room.id || room).slice(0, 8)}`}</span>
+                  </span>
+                  <span className="recent-card-footer">일정 열기<ArrowRight size={17} aria-hidden="true" /></span>
                 </button>
               ))}
             </div>
-          </div>
-        )}
+          ) : <div className="recent-empty"><Clock3 size={21} /><p>아직 방문한 일정이 없어요.<span>참여한 일정은 여기에 표시됩니다.</span></p></div>}
+        </section>
 
-        {/* 이용 방법 */}
-        <div className="mb-6">
-          <p className="section-sub mb-1">When2Meet 소개</p>
-          <p className="section-title text-lg mb-3">이렇게 사용해요</p>
-          <div className="card p-4 space-y-3">
-            {STEPS.map((s, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                  <s.icon className="w-3.5 h-3.5 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-extrabold text-sm text-[#111] dark:text-[#e4e4e7]">{s.title}</p>
-                  <p className="text-xs font-medium mt-0.5 text-[#aaa]">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 바텀시트 폼 */}
-        {showForm && (
-          <div className="fixed inset-0 z-[60] flex items-end justify-center">
-            <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(4px)' }}
-              onClick={() => setShowForm(false)}
-            />
-            <div className="relative w-full max-w-lg bg-white dark:bg-[#232329] px-5 pt-6 pb-24"
-              style={{ borderRadius: '28px 28px 0 0', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 -4px 40px rgba(0,0,0,0.12)' }}
-            >
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-[#e0e0e0] dark:bg-[#444]" />
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-xl flex items-center justify-center bg-[#edfdf8] dark:bg-[#0f2e2a] border border-[#a8f2e4] dark:border-[#1a4a44]">
-                    <CalendarDays className="w-3.5 h-3.5 text-[#0ecfb0] dark:text-[#0ab8a0]" />
-                  </div>
-                  <p className="font-extrabold text-lg text-[#111] dark:text-[#e4e4e7]">방 만들기</p>
-                </div>
-                <button onClick={() => setShowForm(false)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full active:scale-90 bg-[#f5f5f5] dark:bg-[#232329] text-[#888]"
-                  style={{ fontSize: '18px' }}
-                >×</button>
-              </div>
-              {FormContent}
-            </div>
-          </div>
-        )}
+        <section id="how-it-works" className="guide-section" aria-labelledby="guide-heading">
+          <div className="guide-heading"><p>만나는 일만 남도록.</p><h2 id="guide-heading">복잡한 조율은 줄이고,<br />약속은 가볍게.</h2></div>
+          <ol className="guide-steps">
+            <li>
+              <div className="guide-demo demo-link" aria-hidden="true"><Link2 size={19} /><span>우리의 다음 약속</span><span className="demo-link-action">링크 공유 <ArrowRight size={13} /></span></div>
+              <span className="guide-number">01</span><h3>링크 하나로 모여요.</h3><p>후보 날짜와 시간을 정하고,<br />함께할 사람들에게 링크를 보내세요.</p>
+            </li>
+            <li>
+              <div className="guide-demo demo-times" aria-hidden="true"><span>나는 이때 괜찮아!</span><div>{[0,1,2,3,4,5,6,7,8,9,10,11].map(n => <i key={n} className={[2,3,5,6,7,10].includes(n) ? 'selected' : ''}>{[3,6,10].includes(n) && <Check size={13} />}</i>)}</div></div>
+              <span className="guide-number">02</span><h3>되는 시간을 골라요.</h3><p>이름을 적고 가능한 시간을 선택하세요.<br />누구나 가입 없이 참여할 수 있어요.</p>
+            </li>
+            <li>
+              <div className="guide-demo demo-result" aria-hidden="true"><span className="demo-check"><Check size={20} /></span><div><small>우리 모두 되는 시간</small><strong>토요일, 저녁 7시</strong></div></div>
+              <span className="guide-number">03</span><h3>겹치는 때를 한눈에.</h3><p>가장 많이 겹치는 시간을 확인하고,<br />모두에게 좋은 날을 정하세요.</p>
+            </li>
+          </ol>
+        </section>
+        <div className="closing-invite"><p>미뤄둔 약속, 이제 잡아볼까요?</p><button type="button" className="btn-primary" aria-haspopup="dialog" onClick={() => setSheetOpen(true)}>일정 만들기<ArrowRight size={18} /></button></div>
       </div>
     </div>
   )

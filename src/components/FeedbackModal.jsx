@@ -46,22 +46,22 @@ export default function FeedbackModal({ onClose }) {
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-5">
           <p className="font-extrabold text-lg flex items-center gap-2 text-[#111] dark:text-[#e4e4e7]">
-            <MessageCircle className="w-5 h-5 text-[#0ecfb0] dark:text-[#0ab8a0]" /> 의견 보내기
+            <MessageCircle className="w-5 h-5 text-[#0066cc] dark:text-[#80bbff]" /> 의견 보내기
           </p>
-          <button onClick={onClose}
+          <button aria-label="닫기" onClick={onClose}
             className="w-8 h-8 flex items-center justify-center active:scale-90 transition-all bg-[#f0f0f5] dark:bg-[#2c2c35] border border-[#e4e4ec] dark:border-[#3a3a45]"
             style={{ borderRadius:'999px' }}
           >
-            <X className="w-4 h-4 text-[#888] dark:text-[#666]"/>
+            <X className="w-4 h-4 text-[#888] dark:text-[#b3aabe]"/>
           </button>
         </div>
 
         {status === 'success' ? (
           <div className="py-10 flex flex-col items-center gap-3 text-center">
-            <CheckCircle2 className="w-14 h-14 text-[#0ecfb0] dark:text-[#0ab8a0]" />
+            <CheckCircle2 className="w-14 h-14 text-[#0066cc] dark:text-[#80bbff]" />
             <p className="font-extrabold text-lg text-[#111] dark:text-[#e4e4e7]">전송 완료!</p>
-            <p className="text-sm font-medium text-[#999] dark:text-[#666]">소중한 의견 감사합니다. 검토 후 반영할게요.</p>
-            <button onClick={onClose} className="btn-primary mt-3 px-10">닫기</button>
+            <p className="text-sm font-medium text-[#999] dark:text-[#b3aabe]">소중한 의견 감사합니다. 검토 후 반영할게요.</p>
+            <button aria-label="닫기" onClick={onClose} className="btn-primary mt-3 px-10">닫기</button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -74,7 +74,7 @@ export default function FeedbackModal({ onClose }) {
                   className={`flex-1 py-2.5 text-sm font-extrabold transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
                     form.type === t.value
                       ? 'text-white'
-                      : 'bg-[#f0f0f5] dark:bg-[#2c2c35] text-[#888] dark:text-[#666] border-2 border-[#e4e4ec] dark:border-[#3a3a45]'
+                      : 'bg-[#f0f0f5] dark:bg-[#2c2c35] text-[#888] dark:text-[#b3aabe] border-2 border-[#e4e4ec] dark:border-[#3a3a45]'
                   }`}
                   style={form.type === t.value ? {
                     borderRadius:'999px', background:'var(--brand)',
@@ -89,18 +89,18 @@ export default function FeedbackModal({ onClose }) {
 
             {/* 내용 */}
             <div>
-              <label className="label flex items-center gap-1"><FileText className="w-3 h-3" /> 내용 <span className="text-[#e11d48]">*</span></label>
-              <textarea className="input resize-none" rows={4}
+              <label htmlFor="feedback-message" className="label flex items-center gap-1"><FileText className="w-3 h-3" /> 내용 <span className="text-[#e11d48]">*</span></label>
+              <textarea id="feedback-message" className="input resize-none" rows={4}
                 placeholder="어떤 점이 불편하셨나요? 자유롭게 적어주세요."
                 value={form.message} onChange={e => setForm(f => ({...f, message: e.target.value}))} maxLength={1000}
               />
-              <p className="text-right text-xs font-semibold mt-1 text-[#bbb] dark:text-[#555]">{form.message.length}/1000</p>
+              <p className="text-right text-xs font-semibold mt-1 text-[#7b7488] dark:text-[#b3aabe]">{form.message.length}/1000</p>
             </div>
 
             {/* 연락처 */}
             <div>
-              <label className="label flex items-center gap-1"><Mail className="w-3 h-3" /> 연락처 <span className="normal-case font-medium text-[#bbb] dark:text-[#555]">(선택)</span></label>
-              <input type="text" className="input" placeholder="이메일 또는 연락처"
+              <label htmlFor="feedback-contact" className="label flex items-center gap-1"><Mail className="w-3 h-3" /> 연락처 <span className="normal-case font-medium text-[#7b7488] dark:text-[#b3aabe]">(선택)</span></label>
+              <input id="feedback-contact" type="text" className="input" placeholder="이메일 또는 연락처"
                 value={form.contact} onChange={e => setForm(f => ({...f, contact: e.target.value}))}
               />
             </div>

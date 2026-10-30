@@ -15,11 +15,20 @@ CREATE TABLE IF NOT EXISTS availability (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id uuid NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   name text NOT NULL CHECK (char_length(name) BETWEEN 1 AND 20),
-  slots text[] NOT NULL CHECK (cardinality(slots) >= 1),
+  slots text[] NOT NULL,
+  response_token_hash text,
   updated_at timestamptz NOT NULL DEFAULT now(),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (room_id, name)
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS availability_room_id_created_at_idx
   ON availability (room_id, created_at);
+
+-- Idempotent upgrade: preserve legacy responses; they have no ownership token.
+BEGIN;
+ALTER TABLE availability ADD COLUMN IF NOT EXISTS response_token_hash text;
+ALTER TABLE availability DROP CONSTRAINT IF EXISTS availability_room_id_name_key;
+ALTER TABLE availability DROP CONSTRAINT IF EXISTS availability_slots_check;
+CREATE UNIQUE INDEX IF NOT EXISTS availability_room_response_token_idx
+  ON availability (room_id, response_token_hash);
+COMMIT;

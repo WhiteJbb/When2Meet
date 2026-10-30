@@ -15,7 +15,7 @@ function fromDateStr(str) {
   return new Date(str + 'T00:00:00')
 }
 
-export default function DatePicker({ value, onChange, minDate, fullWidth = false }) {
+export default function DatePicker({ id, value, onChange, minDate, fullWidth = false, inline = false }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const min = minDate ? fromDateStr(minDate) : today
@@ -117,10 +117,13 @@ export default function DatePicker({ value, onChange, minDate, fullWidth = false
     : '날짜 선택'
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" onKeyDown={e => { if (e.key === 'Escape' && open) { e.preventDefault(); e.stopPropagation(); setOpen(false); containerRef.current?.querySelector('button').focus() } }}>
       {/* 트리거 버튼 */}
       <button
         type="button"
+        id={id}
+        aria-expanded={open}
+        aria-controls={id ? `${id}-calendar` : undefined}
         onClick={() => setOpen(o => !o)}
         className="input flex items-center justify-between gap-2 cursor-pointer text-left"
       >
@@ -132,15 +135,16 @@ export default function DatePicker({ value, onChange, minDate, fullWidth = false
 
       {/* 달력 팝업 */}
       {open && (
-        <div className={`absolute top-full mt-2 z-50 card shadow-xl p-4 animate-in ${
-          fullWidth 
+        <div id={id ? `${id}-calendar` : undefined} className={`${inline ? 'relative' : 'absolute top-full'} mt-2 z-50 card shadow-xl p-4 animate-in ${
+          inline ? 'w-full' : fullWidth
             ? 'left-0 right-0' 
-            : `w-80 ${position === 'right' ? 'right-0' : 'left-0'}`
+            : `w-[min(20rem,calc(100vw-5.5rem))] ${position === 'right' ? 'right-0' : 'left-0'}`
         }`}>
           {/* 월 네비게이션 */}
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
+              aria-label="이전 달"
               onClick={prevMonth}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
@@ -151,6 +155,7 @@ export default function DatePicker({ value, onChange, minDate, fullWidth = false
             </span>
             <button
               type="button"
+              aria-label="다음 달"
               onClick={nextMonth}
               className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
@@ -186,6 +191,8 @@ export default function DatePicker({ value, onChange, minDate, fullWidth = false
                   key={idx}
                   type="button"
                   disabled={disabled || !day}
+                  aria-label={day ? `${viewYear}년 ${viewMonth + 1}월 ${day}일` : undefined}
+                  aria-pressed={selected_}
                   onClick={() => day && handleSelect(day)}
                   className={`
                     aspect-square rounded-lg text-sm font-semibold transition-colors
@@ -217,7 +224,7 @@ export default function DatePicker({ value, onChange, minDate, fullWidth = false
               onClick={() => {
                 setViewYear(today.getFullYear())
                 setViewMonth(today.getMonth())
-                handleSelect(today.getDate())
+                if (today >= min) { onChange(toDateStr(today)); setOpen(false) }
               }}
               className="w-full py-2.5 rounded-lg text-sm font-semibold
                          bg-brand-50 dark:bg-brand-900/20

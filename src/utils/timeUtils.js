@@ -89,129 +89,50 @@ export function buildHeatmap(availabilities) {
 export function findBestSlots(heatmap, availabilities, topN = 5, minSlots = 2) {
   if (!availabilities.length) return []
 
-  // 날짜별로 슬롯 그룹화
-  const byDate = {}
-  for (const [key, names] of Object.entries(heatmap)) {
-    const { date, time } = parseSlotId(key)
-    if (!byDate[date]) byDate[date] = []
-    byDate[date].push({ time, names: names.sort(), count: names.length })
-  }
-
-  const blocks = []
-
-  for (const [date, slots] of Object.entries(byDate)) {
-    // 시간순 정렬
-    slots.sort((a, b) => a.time.localeCompare(b.time))
-
-    // 연속된 슬롯들을 그룹화
-    let i = 0
-    while (i < slots.length) {
-      const group = [slots[i]]
-      let j = i + 1
-      
-      // 연속된 슬롯들을 모음
-      while (j < slots.length && isConsecutive(slots[j - 1].time, slots[j].time)) {
-        group.push(slots[j])
-        j++
-      }
-
-      // 이 그룹 내에서 참여자 집합이 변하는 경계점 찾기
-      if (group.length >= minSlots) {
-        // 각 구간의 참여자 집합 변화를 추적
-        const segments = []
-        let segStart = 0
-        
-        for (let k = 1; k < group.length; k++) {
-          const prevSet = group[k - 1].names.join(',')
-          const currSet = group[k].names.join(',')
-          
-          // 참여자 집합이 바뀌면 새 구간 시작
-          if (prevSet !== currSet) {
-            segments.push({ start: segStart, end: k - 1 })
-            segStart = k
-          }
-        }
-        // 마지막 구간 추가
-        segments.push({ start: segStart, end: group.length - 1 })
-
-        // 각 구간에서 가능한 모든 연속 블록 생성
-        for (const seg of segments) {
-          const segLength = seg.end - seg.start + 1
-          if (segLength < minSlots) continue
-
-          // 이 구간의 참여자 (모든 슬롯에 공통)
-          let commonNames = new Set(group[seg.start].names)
-          for (let k = seg.start + 1; k <= seg.end; k++) {
-            const intersection = [...commonNames].filter(n => group[k].names.includes(n))
-            commonNames = new Set(intersection)
-          }
-
-          if (commonNames.size > 0) {
-            blocks.push({
-              date,
-              startTime: group[seg.start].time,
-              endTime: addMinutes(group[seg.end].time, 30),
-              participants: [...commonNames].sort(),
-              count: commonNames.size,
-              durationMins: segLength * 30,
-            })
-          }
-        }
-      }
-
-      i = j
+  // Compare response identities, not display names: names can be shared.
+  const owners = new Map()
+  availabilities.forEach((response, index) => {
+    for (const slot of new Set(response.slots)) {
+      if (!owners.has(slot)) owners.set(slot, new Set())
+      owners.get(slot).add(index)
     }
-  }
-
-  // 중복 제거 및 부분집합 제거
-  const uniqueBlocks = []
-  const blockKey = (b) => `${b.date}|${b.startTime}|${b.endTime}|${b.participants.join(',')}`
-  const seen = new Set()
-
-  for (const block of blocks) {
-    const key = blockKey(block)
-    if (seen.has(key)) continue
-    seen.add(key)
-
-    // 이 블록이 다른 블록의 부분집합인지 확인
-    let isSubset = false
-    for (const other of blocks) {
-      if (blockKey(block) === blockKey(other)) continue
-      if (block.date !== other.date) continue
-      if (block.participants.join(',') !== other.participants.join(',')) continue
-      
-      // other가 block을 완전히 포함하는지
-      if (other.startTime <= block.startTime && 
-          other.endTime >= block.endTime && 
-          other.durationMins > block.durationMins) {
-        isSubset = true
-        break
-      }
-    }
-
-    if (!isSubset) {
-      uniqueBlocks.push(block)
-    }
-  }
-
-  // 참여 인원 수 → 길이 → 날짜순 정렬
-  uniqueBlocks.sort((a, b) => {
-    if (b.count !== a.count) return b.count - a.count
-    if (b.durationMins !== a.durationMins) return b.durationMins - a.durationMins
-    return a.date.localeCompare(b.date)
   })
+  const byDate = new Map()
+  for (const key of Object.keys(heatmap)) {
+    const { date, time } = parseSlotId(key)
+    if (!byDate.has(date)) byDate.set(date, [])
+    byDate.get(date).push({ time, members: owners.get(key) || new Set() })
+  }
 
-  // 최고 인원수와 시간 찾기
-  const maxCount = uniqueBlocks.length > 0 ? uniqueBlocks[0].count : 0
-  const maxDuration = uniqueBlocks.filter(b => b.count === maxCount).reduce((max, b) => Math.max(max, b.durationMins), 0)
-  
-  // 강조 표시 추가
-  const result = uniqueBlocks.slice(0, topN).map(block => ({
+  const groups = new Map()
+  for (const [date, slots] of byDate) {
+    slots.sort((a, b) => a.time.localeCompare(b.time))
+    for (let start = 0; start < slots.length; start++) {
+      let common = new Set(slots[start].members)
+      for (let end = start; end < slots.length && common.size; end++) {
+        if (end > start && !isConsecutive(slots[end - 1].time, slots[end].time)) break
+        common = new Set([...common].filter(member => slots[end].members.has(member)))
+        if (!common.size) break
+        if (end - start + 1 < minSlots) continue
+        const ids = [...common].sort((a, b) => a - b)
+        const key = `${date}|${ids.join(',')}`
+        const block = {
+          date, startTime: slots[start].time, endTime: addMinutes(slots[end].time, 30),
+          participants: ids.map(index => availabilities[index].name),
+          count: ids.length, durationMins: (end - start + 1) * 30,
+        }
+        const existing = groups.get(key) || []
+        if (existing.some(other => other.startTime <= block.startTime && other.endTime >= block.endTime)) continue
+        groups.set(key, [...existing.filter(other => !(block.startTime <= other.startTime && block.endTime >= other.endTime)), block])
+      }
+    }
+  }
+  const blocks = [...groups.values()].flat().sort((a, b) =>
+    b.count - a.count || b.durationMins - a.durationMins || a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+  return blocks.slice(0, topN).map(block => ({
     ...block,
-    isHighlighted: block.count === maxCount && block.durationMins === maxDuration
+    isHighlighted: block.count === blocks[0].count && block.durationMins === blocks[0].durationMins,
   }))
-
-  return result
 }
 
 function isConsecutive(time1, time2) {

@@ -1,45 +1,6 @@
-<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="teal" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#3ECFB2"/>
-      <stop offset="100%" stop-color="#0DAF8A"/>
-    </linearGradient>
-    <radialGradient id="blob" cx="70%" cy="25%" r="55%">
-      <stop offset="0%" stop-color="#5DDFC5" stop-opacity="0.55"/>
-      <stop offset="100%" stop-color="#0DAF8A" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="dim" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="rgba(255,255,255,0.88)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0.68)"/>
-    </linearGradient>
-    <clipPath id="iconClip">
-      <rect width="160" height="160" rx="38"/>
-    </clipPath>
-  </defs>
-
-  <!-- Background -->
-  <rect width="160" height="160" rx="38" fill="url(#teal)"/>
-  <rect width="160" height="160" rx="38" fill="url(#blob)"/>
-
-  <!-- People group clipped to icon bounds, shifted up -->
-  <g clip-path="url(#iconClip)">
-    <!-- Left person -->
-    <circle cx="44" cy="58" r="14" fill="url(#dim)"/>
-    <path d="M16,100 Q44,82 72,100 L72,124 L16,124 Z" fill="url(#dim)"/>
-
-    <!-- Center person (highlighted) -->
-    <circle cx="80" cy="50" r="18" fill="white"/>
-    <path d="M48,100 Q80,78 112,100 L112,124 L48,124 Z" fill="white"/>
-
-    <!-- Right person -->
-    <circle cx="116" cy="58" r="14" fill="url(#dim)"/>
-    <path d="M88,100 Q116,82 144,100 L144,124 L88,124 Z" fill="url(#dim)"/>
-  </g>
-
-  <!-- Clock badge (bottom-right, clean zone) -->
-  <circle cx="122" cy="122" r="24" fill="white"/>
-  <circle cx="122" cy="122" r="16" fill="none" stroke="#0DAF8A" stroke-width="2.5"/>
-  <line x1="122" y1="122" x2="122" y2="111" stroke="#0DAF8A" stroke-width="2" stroke-linecap="round"/>
-  <line x1="122" y1="122" x2="131" y2="128" stroke="#0DAF8A" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="122" cy="122" r="2.5" fill="#0DAF8A"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#24292e"/>
+  <rect x="6" y="7" width="15" height="4" rx="1" fill="#f6f7f8"/>
+  <rect x="11" y="14" width="15" height="4" rx="1" fill="#c1d8a2"/>
+  <rect x="8" y="21" width="15" height="4" rx="1" fill="#f6f7f8"/>
 </svg>
