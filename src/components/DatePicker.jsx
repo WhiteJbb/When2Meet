@@ -169,7 +169,7 @@ export default function DatePicker({ id, value, onChange, minDate, fullWidth = f
               <div
                 key={w}
                 className={`text-center text-xs font-semibold py-2
-                  ${i === 0 ? 'text-rose-400' : i === 6 ? 'text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}
+                  ${i === 0 ? 'text-[var(--sunday)]' : i === 6 ? 'text-[var(--saturday)]' : 'text-slate-400 dark:text-slate-500'}`}
               >
                 {w}
               </div>
@@ -204,9 +204,9 @@ export default function DatePicker({ id, value, onChange, minDate, fullWidth = f
                       : disabled
                       ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
                       : isSun
-                      ? 'text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'text-[var(--sunday)] hover:bg-slate-100 dark:hover:bg-slate-800'
                       : isSat
-                      ? 'text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      ? 'text-[var(--saturday)] hover:bg-slate-100 dark:hover:bg-slate-800'
                       : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }
                   `}

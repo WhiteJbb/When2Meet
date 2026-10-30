@@ -10,6 +10,7 @@ export default function TimeGrid({
 
   const [rangeSelection, setRangeSelection] = useState(false)
   const [activeCell, setActiveCell] = useState(null)
+  const [keyboardFocus, setKeyboardFocus] = useState(true)
   const suppressClick = useRef(false)
   const isDragging = useRef(false)
   const dragMode = useRef('add')
@@ -108,11 +109,14 @@ export default function TimeGrid({
 
   useEffect(() => {
     const stop = () => { isDragging.current = false }
+    const showKeyboardFocus = () => setKeyboardFocus(true)
     window.addEventListener('pointerup', stop)
     window.addEventListener('pointercancel', stop)
+    window.addEventListener('keydown', showKeyboardFocus, true)
     return () => {
       window.removeEventListener('pointerup', stop)
       window.removeEventListener('pointercancel', stop)
+      window.removeEventListener('keydown', showKeyboardFocus, true)
     }
   }, [])
 
@@ -147,7 +151,7 @@ export default function TimeGrid({
     border: 'var(--line)', header: 'var(--surface)', timeCol: 'var(--soft)',
     hourLine: 'var(--line)', halfLine: 'var(--soft)', colLine: 'var(--line)',
     cellEven: 'var(--surface)', cellOdd: 'var(--soft)',
-    timeText: 'var(--muted)', dayText: 'var(--text)', weekendText: 'var(--brand)',
+    timeText: 'var(--muted)', dayText: 'var(--text)',
   }
 
   function getCellBg(date, time, hourIndex) {
@@ -173,6 +177,8 @@ export default function TimeGrid({
         <span className="sr-only">키보드: 방향키로 이동, Space 또는 Enter로 선택</span>
       </div>}
     <div ref={containerRef} className="overflow-auto time-grid-scroll"
+      data-keyboard-focus={keyboardFocus}
+      onPointerDownCapture={() => setKeyboardFocus(false)}
       style={{ borderRadius: '8px', border: `1.5px solid ${c.border}` }}
     >
       <div ref={gridRef} className="relative" onPointerMove={handlePointerMove}
@@ -185,7 +191,7 @@ export default function TimeGrid({
           <div className="w-[70px] flex-shrink-0 sticky left-0 z-30" style={{ background: c.header }}/>
           {dates.map(d => {
             const { weekday, month, day, isSunday, isSaturday } = formatDateHeader(d)
-            const textColor = isSunday || isSaturday ? c.weekendText : c.dayText
+            const textColor = isSaturday ? 'var(--saturday)' : isSunday ? 'var(--sunday)' : c.dayText
             return (
               <div key={d} className="flex-1 min-w-[64px] text-center py-3"
                 style={{ borderLeft: `1.5px solid ${c.colLine}` }}

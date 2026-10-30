@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { UserRound } from 'lucide-react'
 import TimeGrid from './TimeGrid'
-import { buildHeatmap, findBestSlots, formatDateFull } from '../utils/timeUtils'
+import { buildHeatmap, findBestSlots, formatDateFull, formatDateHeader } from '../utils/timeUtils'
 
 export default function ResultsView({ room, availabilities }) {
   const [hoveredSlot, setHoveredSlot] = useState(null)
@@ -17,8 +18,11 @@ export default function ResultsView({ room, availabilities }) {
         {totalCount === 0 ? <p className="text-sm text-muted">아직 응답이 없어요. 초대 링크를 보내 함께 시간을 골라보세요.</p> : (
           <ul>
             {availabilities.map(av => <li key={av.id}>
-              {av.name}{av.is_mine ? ' (나)' : ''}
-              {av.slots.length === 0 && <span> · 가능한 시간 없음</span>}
+              <span className="response-avatar" aria-hidden="true"><UserRound size={18} strokeWidth={1.8} /></span>
+              <span className="response-person">
+                <span className="response-name">{av.name}{av.is_mine && <span className="response-self">나</span>}</span>
+                {av.slots.length === 0 && <span className="response-unavailable">가능한 시간 없음</span>}
+              </span>
             </li>)}
           </ul>
         )}
@@ -38,18 +42,32 @@ export default function ResultsView({ room, availabilities }) {
           <p className="text-xs text-muted mb-4">선택한 시간 이상 만날 수 있는 구간이에요.</p>
           {bestSlots.length === 0 ? <p role="status" className="empty-recommendation">{duration}분 이상 가능한 시간이 없어요. 필요한 시간을 줄이거나 다른 날짜를 조율해보세요.</p> : (
             <ol className="recommendation-list">
-              {bestSlots.map((slot, i) => <li key={`${slot.date}-${slot.startTime}-${i}`} className="recommendation-row" data-top={i === 0}>
-                <span className="recommendation-rank" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                <div className="recommendation-time">
-                  <p>{formatDateFull(slot.date)}</p>
-                  <strong>{slot.startTime} <span>—</span> {slot.endTime}</strong>
-                  <small>{slot.durationMins}분</small>
-                </div>
-                <div className="recommendation-count">
-                  <strong>{slot.count}<span>/{totalCount}</span></strong>
-                  <p>{slot.count === totalCount ? '전원 가능' : `${slot.count}명 가능`}</p>
-                </div>
-              </li>)}
+              {bestSlots.map((slot, i) => {
+                const { month, day, weekday, isSaturday, isSunday } = formatDateHeader(slot.date)
+                return <li key={`${slot.date}-${slot.startTime}-${i}`} className="recommendation-row" data-top={i === 0}>
+                  <time className={`recommendation-date ${isSaturday ? 'weekday-saturday' : isSunday ? 'weekday-sunday' : ''}`}
+                    dateTime={slot.date} aria-label={`${slot.date.slice(0, 4)}년 ${formatDateFull(slot.date)}`}>
+                    <span>{month}월</span><strong>{day}</strong><span>{weekday}요일</span>
+                  </time>
+                  <div className="recommendation-details">
+                    <div className="recommendation-topline">
+                      <span className="recommendation-rank" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                      {i === 0 && <span className="recommendation-badge">가장 많이 겹쳐요</span>}
+                    </div>
+                    <div className="recommendation-body">
+                      <div className="recommendation-time">
+                        <strong>{slot.startTime} <span>—</span> {slot.endTime}</strong>
+                        <small>{slot.durationMins}분 동안 만날 수 있어요</small>
+                      </div>
+                      <div className="recommendation-count" data-all={slot.count === totalCount}>
+                        <strong>{slot.count}<span> / {totalCount}명</span></strong>
+                        <p>{slot.count === totalCount ? '전원 가능' : `${slot.count}명 가능`}</p>
+                        <div className="recommendation-meter" aria-hidden="true"><span style={{ width: `${slot.count / totalCount * 100}%` }} /></div>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              })}
             </ol>
           )}
         </section>

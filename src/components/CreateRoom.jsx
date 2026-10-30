@@ -265,7 +265,7 @@ export default function CreateRoom() {
                   
                   return (
                     <span key={d}
-                      className={`candidate-day ${isSunday || isSaturday ? 'candidate-weekend' : ''}`}
+                      className={`candidate-day ${isSaturday ? 'weekday-saturday' : isSunday ? 'weekday-sunday' : ''}`}
                     >
                       {date.getMonth()+1}/{date.getDate()}<br/>({days[dayOfWeek]})
                     </span>
