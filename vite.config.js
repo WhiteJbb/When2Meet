@@ -10,6 +10,7 @@ export default defineConfig({
     allowedHosts: ['macbook', '.tailbbb6ce.ts.net'],
     proxy: {
       '/api': 'http://localhost:3000',
+      '/share': 'http://localhost:3000',
     },
   },
   base: process.env.NODE_ENV === 'production'

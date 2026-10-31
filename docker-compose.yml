@@ -21,6 +21,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://when2meet.nangman.cloud}
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-when2meet}

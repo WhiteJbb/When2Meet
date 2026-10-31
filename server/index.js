@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
 import pg from 'pg'
+import { createShareRouter } from './share.js'
 
 const { Pool } = pg
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -29,6 +30,7 @@ const pool = new Pool({ ...poolConfig, max: Number(process.env.DB_POOL_MAX || 10
 
 app.disable('x-powered-by')
 app.use(express.json({ limit: '256kb' }))
+app.use('/share', createShareRouter(pool, process.env.PUBLIC_BASE_URL || 'https://when2meet.nangman.cloud'))
 
 function isUuid(value) {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)

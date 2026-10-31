@@ -303,3 +303,17 @@ API 검증은 테스트 일정을 만들고 해당 일정만 소유자 키로 �
 ### 사진 출처
 
 - 홈 화면: [Group of Friends Having Dinner — cottonbro studio / Pexels](https://www.pexels.com/photo/group-of-friends-having-dinner-6954471/), [Pexels License](https://www.pexels.com/license/). 로컬 파일 `public/images/dinner.jpg` 사용. 사진과 함께 표시된 대화 및 초대장은 서비스 이용을 설명하는 가상의 예시입니다.
+
+## 모임별 공유 미리보기
+
+모임 화면의 ‘링크 복사’는 `/share/:id` 주소를 복사합니다. 서버가 모임 이름과 후보 날짜·시간을 담은 Open Graph 메타 태그 및 1200×630 PNG(`/share/:id/image.png`)를 제공합니다. 사람에게는 기존 `/#/room/:id` 화면을 열어 줍니다. 기존 해시 링크도 계속 사용할 수 있지만 모임별 미리보기에는 새 공유 주소가 필요합니다.
+
+`PUBLIC_BASE_URL`은 외부에서 접속할 서비스 origin입니다. 운영 기본값은 `https://when2meet.nangman.cloud`이며, 로컬에서는 `http://100.94.187.77:5173`처럼 Tailscale origin으로 지정합니다. Vite는 `/share`와 `/api`를 API 서버로 전달합니다. 카카오 등 외부 공유 서비스가 이미지를 수집하려면 공개 서버에 반영되어야 합니다. 기존 메시지의 미리보기는 서비스 측 캐시에 남을 수 있습니다.
+
+이미지는 `sharp`로 생성하며 공개 모임 정보만 사용합니다. 최대 32개 이미지를 메모리에 보관하고, 삭제된 모임은 캐시 여부와 관계없이 404를 반환합니다. 공유 기능은 DB 스키마를 변경하지 않습니다. 이전 클라이언트 및 API와 호환되며, 되돌릴 때는 클라이언트와 서버 변경을 함께 되돌립니다.
+
+`node --test tests/share.test.js`로 메타 태그 이스케이프, 이미지 생성 및 삭제 후 접근을 검증합니다. 렌더링 폰트는 저장소에 포함해 서버에 설치된 폰트에 의존하지 않습니다.
+
+- [Noto Sans KR](https://github.com/notofonts/noto-cjk/tree/main/Sans/SubsetOTF/KR): `server/fonts/NotoSansKR-Bold.otf`, SIL OFL 1.1 (`server/fonts/OFL.txt`)
+- [Noto Emoji](https://github.com/google/fonts/tree/main/ofl/notoemoji): `server/fonts/NotoEmoji.ttf`, SIL OFL 1.1 (`server/fonts/OFL-Emoji.txt`)
+- 모임별 이미지에도 위 사진 출처의 `public/images/dinner.jpg`를 사용합니다.

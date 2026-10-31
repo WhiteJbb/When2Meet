@@ -22,6 +22,7 @@ export default function RoomPage() {
 
 function RoomContent({ id }) {
   const navigate = useNavigate()
+  const shareUrl = new URL(`share/${encodeURIComponent(id)}`, `${window.location.origin}${import.meta.env.BASE_URL}`).href
 
   const [room, setRoom] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -152,7 +153,7 @@ function RoomContent({ id }) {
   async function handleCopy() {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable')
-      await navigator.clipboard.writeText(window.location.href)
+      await navigator.clipboard.writeText(shareUrl)
       setCopied(true)
       setCopyFallback(false)
       setTimeout(() => setCopied(false), 2000)
@@ -237,7 +238,7 @@ function RoomContent({ id }) {
         <div className="card p-4">
           <label htmlFor="invite-link" className="label">초대 링크</label>
           <p role="status" className="text-sm text-muted mb-2">자동으로 복사할 수 없어요. 아래 주소를 길게 누르거나 Ctrl+C / ⌘C로 복사해주세요.</p>
-          <input ref={copyInput} id="invite-link" className="input" readOnly value={window.location.href} onFocus={event => event.target.select()} />
+          <input ref={copyInput} id="invite-link" className="input" readOnly value={shareUrl} onFocus={event => event.target.select()} />
         </div>
       )}
 
